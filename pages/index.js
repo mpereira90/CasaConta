@@ -1,10 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from '../lib/supabase';
+import {
+  getContas, upsertConta, deleteConta as dbDeleteConta, toggleContaPago,
+  getCartoes, upsertCartao, deleteCartao as dbDeleteCartao,
+  getCompras, upsertCompra, deleteCompra as dbDeleteCompra,
+  getFaturasPagas, toggleFaturaPaga,
+} from '../lib/supabase';
 
 // ─── UTILS ───────────────────────────────────────────────────
 const fmtBRL = (v) => Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
 const fmtDate = (s) => { if(!s) return "-"; const [y,m,d]=s.split("-"); return `${d}/${m}/${y}`; };
-const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2);
+const uid = () => crypto.randomUUID();
 const mesAtualStr = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`; };
 const hoje0 = () => { const d=new Date(); d.setHours(0,0,0,0); return d; };
 const daysUntil = (s) => Math.round((new Date(s+"T00:00:00")-hoje0())/864e5);
@@ -52,136 +57,187 @@ const EMPTY_COMPRA = {cartaoId:"",descricao:"",valor:"",totalParcelas:"1",parcel
 
 // ─── APP ─────────────────────────────────────────────────────
 export default function App() {
-  const [tab,       setTab]      = useState("dashboard");
-  const [contas,    setContas]   = useState([]);   // contas fixas
-  const [cartoes,   setCartoes]  = useState([]);   // cartões cadastrados
-  const [compras,   setCompras]  = useState([]);   // compras dos cartões
-  const [loading,   setLoading]  = useState(true);
-  const [toast,     setToast]    = useState(null);
-  const [modal,     setModal]    = useState(null); // {type:"conta"|"cartao"|"compra"|"verCartao", data}
-  const [confirm,   setConfirm]  = useState(null);
-  const [filtroMes, setFiltroMes]= useState(mesAtualStr);
+  const [tab,        setTab]       = useState("dashboard");
+  const [contas,     setContas]    = useState([]);
+  const [cartoes,    setCartoes]   = useState([]);
+  const [compras,    setCompras]   = useState([]);
+  const [faturasPagas, setFaturasPagas] = useState({}); // { "cartaoId_mes": true }
+  const [loading,    setLoading]   = useState(true);
+  const [toast,      setToast]     = useState(null);
+  const [modal,      setModal]     = useState(null);
+  const [confirm,    setConfirm]   = useState(null);
+  const [filtroMes,  setFiltroMes] = useState(mesAtualStr);
 
-  // ── Storage ──
-  useEffect(()=>{
-    (async()=>{
+  // ── Carregar dados do Supabase ──
+  useEffect(() => {
+    (async () => {
       try {
-        const r1=await window.storage.get("cc2-contas");   if(r1) setContas(JSON.parse(r1.value));
-        const r2=await window.storage.get("cc2-cartoes");  if(r2) setCartoes(JSON.parse(r2.value));
-        const r3=await window.storage.get("cc2-compras");  if(r3) setCompras(JSON.parse(r3.value));
-      } catch(e){}
+        const [c, ca, co, fp] = await Promise.all([
+          getContas(),
+          getCartoes(),
+          getCompras(),
+          getFaturasPagas(),
+        ]);
+        setContas(c);
+        setCartoes(ca);
+        setCompras(co);
+        setFaturasPagas(fp);
+      } catch (e) {
+        toast_("Erro ao carregar dados", "err");
+        console.error(e);
+      }
       setLoading(false);
     })();
-  },[]);
+  }, []);
 
-  const persist = useCallback(async(key,val)=>{ try{ await window.storage.set(key,JSON.stringify(val)); }catch(e){} },[]);
-
-  const toast_ = (msg,type="ok")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),2800); };
+  const toast_ = (msg, type="ok") => { setToast({msg,type}); setTimeout(()=>setToast(null),2800); };
 
   // ── CONTAS FIXAS ──
-  async function saveConta(form){
-    if(!form.nome.trim()||!form.valor||!form.vencimento){ toast_("Preencha nome, valor e vencimento","err"); return; }
-    let next;
-    if(form.id){ next=contas.map(c=>c.id===form.id?form:c); toast_("Conta atualizada!"); }
-    else        { next=[...contas,{...form,id:uid()}];       toast_("Conta adicionada!"); }
-    setContas(next); await persist("cc2-contas",next); setModal(null);
+  async function saveConta(form) {
+    if (!form.nome.trim()||!form.valor||!form.vencimento) { toast_("Preencha nome, valor e vencimento","err"); return; }
+    try {
+      const saved = await upsertConta({
+        id:         form.id || uid(),
+        nome:       form.nome,
+        categoria:  form.categoria,
+        valor:      form.valor,
+        vencimento: form.vencimento,
+        pago:       form.pago,
+        recorrente: form.recorrente,
+        obs:        form.obs || "",
+      });
+      setContas(prev => form.id ? prev.map(c => c.id===form.id ? saved : c) : [...prev, saved]);
+      toast_(form.id ? "Conta atualizada!" : "Conta adicionada!");
+      setModal(null);
+    } catch(e) { toast_("Erro ao salvar conta","err"); }
   }
-  async function deleteConta(id){
-    const next=contas.filter(c=>c.id!==id); setContas(next); await persist("cc2-contas",next);
-    setConfirm(null); toast_("Removido");
+
+  async function deleteConta(id) {
+    try {
+      await dbDeleteConta(id);
+      setContas(prev => prev.filter(c => c.id !== id));
+      setConfirm(null); toast_("Removido");
+    } catch(e) { toast_("Erro ao remover","err"); }
   }
-  async function togglePago(c,isFatura=false){
-    if(isFatura){
-      // marca fatura do cartão como paga — adiciona flag no cartao p/ aquele mês
-      const key=`${c.cartaoId}_${filtroMes}`;
-      const next=cartoes.map(k=>k.id===c.cartaoId?{...k,faturasPagas:{...(k.faturasPagas||{}),[filtroMes]:!(k.faturasPagas||{})[filtroMes]}}:k);
-      setCartoes(next); await persist("cc2-cartoes",next);
-      toast_(!((cartoes.find(k=>k.id===c.cartaoId)?.faturasPagas||{})[filtroMes])?"Fatura marcada como paga ✓":"Fatura desmarcada");
+
+  async function togglePago(c, isFatura=false) {
+    if (isFatura) {
+      const atual = (faturasPagas[`${c.cartaoId}_${filtroMes}`]) || false;
+      try {
+        await toggleFaturaPaga(c.cartaoId, filtroMes, !atual);
+        setFaturasPagas(prev => ({...prev, [`${c.cartaoId}_${filtroMes}`]: !atual}));
+        toast_(!atual ? "Fatura marcada como paga ✓" : "Fatura desmarcada");
+      } catch(e) { toast_("Erro ao atualizar fatura","err"); }
     } else {
-      const next=contas.map(x=>x.id===c.id?{...x,pago:!x.pago}:x);
-      setContas(next); await persist("cc2-contas",next);
-      toast_(c.pago?"Desmarcado":"Marcado como pago ✓");
+      try {
+        await toggleContaPago(c.id, !c.pago);
+        setContas(prev => prev.map(x => x.id===c.id ? {...x, pago: !c.pago} : x));
+        toast_(c.pago ? "Desmarcado" : "Marcado como pago ✓");
+      } catch(e) { toast_("Erro ao atualizar","err"); }
     }
   }
 
   // ── CARTÕES ──
-  async function saveCartao(form){
-    if(!form.nome.trim()){ toast_("Informe o nome do cartão","err"); return; }
-    let next;
-    if(form.id){ next=cartoes.map(c=>c.id===form.id?form:c); toast_("Cartão atualizado!"); }
-    else        { next=[...cartoes,{...form,id:uid()}];       toast_("Cartão adicionado!"); }
-    setCartoes(next); await persist("cc2-cartoes",next); setModal(null);
+  async function saveCartao(form) {
+    if (!form.nome.trim()) { toast_("Informe o nome do cartão","err"); return; }
+    try {
+      const saved = await upsertCartao({
+        id:       form.id || uid(),
+        nome:     form.nome,
+        bandeira: form.bandeira,
+        limite:   form.limite || null,
+        obs:      form.obs || "",
+      });
+      setCartoes(prev => form.id ? prev.map(c => c.id===form.id ? saved : c) : [...prev, saved]);
+      toast_(form.id ? "Cartão atualizado!" : "Cartão adicionado!");
+      setModal(null);
+    } catch(e) { toast_("Erro ao salvar cartão","err"); }
   }
-  async function deleteCartao(id){
-    const nextC=cartoes.filter(c=>c.id!==id);
-    const nextP=compras.filter(c=>c.cartaoId!==id);
-    setCartoes(nextC); setCompras(nextP);
-    await persist("cc2-cartoes",nextC); await persist("cc2-compras",nextP);
-    setConfirm(null); toast_("Cartão removido");
+
+  async function deleteCartao(id) {
+    try {
+      await dbDeleteCartao(id);
+      setCartoes(prev => prev.filter(c => c.id !== id));
+      setCompras(prev => prev.filter(c => c.cartaoId !== id));
+      setConfirm(null); toast_("Cartão removido");
+    } catch(e) { toast_("Erro ao remover cartão","err"); }
   }
 
   // ── COMPRAS ──
-  async function saveCompra(form){
-    if(!form.cartaoId||!form.descricao.trim()||!form.valor||!form.mes){ toast_("Preencha todos os campos obrigatórios","err"); return; }
-    let next;
-    if(form.id){ next=compras.map(c=>c.id===form.id?form:c); toast_("Compra atualizada!"); }
-    else        { next=[...compras,{...form,id:uid()}];       toast_("Compra adicionada!"); }
-    setCompras(next); await persist("cc2-compras",next); setModal(null);
+  async function saveCompra(form) {
+    if (!form.cartaoId||!form.descricao.trim()||!form.valor||!form.mes) { toast_("Preencha todos os campos obrigatórios","err"); return; }
+    try {
+      const saved = await upsertCompra({
+        id:            form.id || uid(),
+        cartaoId:      form.cartaoId,
+        descricao:     form.descricao,
+        valor:         form.valor,
+        totalParcelas: form.totalParcelas,
+        parcelaAtual:  form.parcelaAtual,
+        mes:           form.mes,
+        obs:           form.obs || "",
+      });
+      setCompras(prev => form.id ? prev.map(c => c.id===form.id ? saved : c) : [...prev, saved]);
+      toast_(form.id ? "Compra atualizada!" : "Compra adicionada!");
+      setModal(null);
+    } catch(e) { toast_("Erro ao salvar compra","err"); }
   }
-  async function deleteCompra(id){
-    const next=compras.filter(c=>c.id!==id); setCompras(next); await persist("cc2-compras",next);
-    setConfirm(null); toast_("Compra removida");
+
+  async function deleteCompra(id) {
+    try {
+      await dbDeleteCompra(id);
+      setCompras(prev => prev.filter(c => c.id !== id));
+      setConfirm(null); toast_("Compra removida");
+    } catch(e) { toast_("Erro ao remover compra","err"); }
   }
 
   // ── COMPUTED ──
-  // Compras do mês atual selecionado, agrupadas por cartão
-  function faturaCartao(cartaoId, mes){
+  function faturaCartao(cartaoId, mes) {
     return compras.filter(c=>c.cartaoId===cartaoId && c.mes===mes).reduce((s,c)=>s+Number(c.valor),0);
   }
 
-  // "Linhas de fatura" — cada cartão que tiver compras no mês vira uma linha de conta
   const faturas = cartoes
-    .map(cartao=>{
+    .map(cartao => {
       const total = faturaCartao(cartao.id, filtroMes);
-      if(total===0) return null;
-      const pago = (cartao.faturasPagas||{})[filtroMes]||false;
+      if (total===0) return null;
+      const pago = faturasPagas[`${cartao.id}_${filtroMes}`] || false;
       const ban = BANDEIRAS.find(b=>b.id===cartao.bandeira)||BANDEIRAS[6];
       return { _fatura:true, cartaoId:cartao.id, nome:`Fatura ${cartao.nome}`, valor:total, pago, cor:ban.cor, icon:ban.icon, bandLabel:ban.label };
     })
     .filter(Boolean);
 
-  const contasMes = contas.filter(c=>{
-    if(!c.vencimento) return false;
-    const [y,m]=filtroMes.split("-");
+  const contasMes = contas.filter(c => {
+    if (!c.vencimento) return false;
+    const [y,m] = filtroMes.split("-");
     return c.vencimento.startsWith(`${y}-${m}`);
   });
 
-  const contasRS = contasMes.map(c=>({...c,status:getStatusConta(c)}));
+  const contasRS = contasMes.map(c => ({...c, status:getStatusConta(c)}));
 
-  // Lista combinada para exibição na aba Contas
   const todasLinhas = [
     ...contasRS,
-    ...faturas.map(f=>({...f, status: f.pago?"pago":"pendente"}))
+    ...faturas.map(f => ({...f, status: f.pago?"pago":"pendente"}))
   ];
 
-  const totalFixas = contasRS.reduce((s,c)=>s+Number(c.valor),0);
-  const pagoFixas  = contasRS.filter(c=>c.status==="pago").reduce((s,c)=>s+Number(c.valor),0);
+  const totalFixas  = contasRS.reduce((s,c)=>s+Number(c.valor),0);
+  const pagoFixas   = contasRS.filter(c=>c.status==="pago").reduce((s,c)=>s+Number(c.valor),0);
   const totalFaturas= faturas.reduce((s,f)=>s+f.valor,0);
   const pagoFaturas = faturas.filter(f=>f.pago).reduce((s,f)=>s+f.valor,0);
   const totalGeral  = totalFixas+totalFaturas;
   const totalPago   = pagoFixas+pagoFaturas;
 
-  const vencidoQty= contasRS.filter(c=>c.status==="vencido").length;
-  const pendQty   = todasLinhas.filter(c=>c.status==="pendente"||c.status==="vencido").length;
+  const vencidoQty  = contasRS.filter(c=>c.status==="vencido").length;
+  const pendQty     = todasLinhas.filter(c=>c.status==="pendente"||c.status==="vencido").length;
 
   const proximas = todasLinhas
     .filter(c=>c.status!=="pago")
     .sort((a,b)=>{ if(a._fatura&&!b._fatura) return 1; if(!a._fatura&&b._fatura) return -1; return new Date(a.vencimento)-new Date(b.vencimento); })
     .slice(0,6);
 
-  if(loading) return (
+  if (loading) return (
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"#0f172a"}}>
       <div style={{width:40,height:40,border:"3px solid #334155",borderTop:"3px solid #38bdf8",borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
+      <p style={{color:"#64748b",marginTop:16,fontSize:13}}>Carregando dados...</p>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
@@ -200,9 +256,9 @@ export default function App() {
             <div style={S.mbrow}>
               <button style={S.bghost} onClick={()=>setConfirm(null)}>Cancelar</button>
               <button style={S.bdanger} onClick={()=>{
-                if(confirm._type==="cartao")  deleteCartao(confirm.id);
-                else if(confirm._type==="compra") deleteCompra(confirm.id);
-                else deleteConta(confirm.id);
+                if(confirm._type==="cartao")       deleteCartao(confirm.id);
+                else if(confirm._type==="compra")  deleteCompra(confirm.id);
+                else                               deleteConta(confirm.id);
               }}>Excluir</button>
             </div>
           </div>
@@ -212,10 +268,10 @@ export default function App() {
       {modal&&(
         <div style={S.overlay} onClick={()=>setModal(null)}>
           <div style={{...S.mbox,maxHeight:"92vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-            {modal.type==="conta"   && <FormConta   data={modal.data} filtroMes={filtroMes} onSave={saveConta}  onClose={()=>setModal(null)}/>}
-            {modal.type==="cartao"  && <FormCartao  data={modal.data}                        onSave={saveCartao} onClose={()=>setModal(null)}/>}
-            {modal.type==="compra"  && <FormCompra  data={modal.data} cartoes={cartoes} filtroMes={filtroMes} onSave={saveCompra} onClose={()=>setModal(null)}/>}
-            {modal.type==="verCartao" && (
+            {modal.type==="conta"    && <FormConta   data={modal.data} filtroMes={filtroMes} onSave={saveConta}  onClose={()=>setModal(null)}/>}
+            {modal.type==="cartao"   && <FormCartao  data={modal.data}                        onSave={saveCartao} onClose={()=>setModal(null)}/>}
+            {modal.type==="compra"   && <FormCompra  data={modal.data} cartoes={cartoes} filtroMes={filtroMes} onSave={saveCompra} onClose={()=>setModal(null)}/>}
+            {modal.type==="verCartao"&& (
               <VerCartao
                 cartao={modal.data}
                 compras={compras}
@@ -251,16 +307,15 @@ export default function App() {
         {/* ═══ DASHBOARD ═══ */}
         {tab==="dashboard"&&(
           <div className="fadeUp">
-            <div style={S.g2} >
+            <div style={S.g2}>
               <BigCard label="Total do mês" value={fmtBRL(totalGeral)} sub={`${todasLinhas.length} lançamentos`} cor="#38bdf8"/>
               <BigCard label="Total pago"   value={fmtBRL(totalPago)}  sub={`${Math.round(totalGeral>0?(totalPago/totalGeral)*100:0)}% quitado`} cor="#10b981"/>
             </div>
             <div style={S.g2}>
-              <BigCard label="Contas fixas"  value={fmtBRL(totalFixas)}   sub={`${contasRS.length} conta${contasRS.length!==1?"s":""}`}   cor="#818cf8"/>
-              <BigCard label="Faturas cartão" value={fmtBRL(totalFaturas)} sub={`${faturas.length} cartão${faturas.length!==1?"ões":""}`}  cor="#f472b6"/>
+              <BigCard label="Contas fixas"   value={fmtBRL(totalFixas)}   sub={`${contasRS.length} conta${contasRS.length!==1?"s":""}`}  cor="#818cf8"/>
+              <BigCard label="Faturas cartão" value={fmtBRL(totalFaturas)} sub={`${faturas.length} cartão${faturas.length!==1?"ões":""}`} cor="#f472b6"/>
             </div>
 
-            {/* Barra */}
             {totalGeral>0&&(
               <div style={S.box}>
                 <p style={S.bxtitle}>Progresso do mês</p>
@@ -272,7 +327,6 @@ export default function App() {
               </div>
             )}
 
-            {/* Pendentes */}
             <div style={S.box}>
               <p style={S.bxtitle}>Pendentes / Vencidos</p>
               {proximas.length===0
@@ -313,14 +367,13 @@ export default function App() {
                 })}
             </div>
 
-            {/* Cartões resumo */}
             {cartoes.length>0&&(
               <div style={S.box}>
                 <p style={S.bxtitle}>Faturas deste mês</p>
                 {cartoes.map(cartao=>{
                   const tot=faturaCartao(cartao.id,filtroMes);
                   const ban=BANDEIRAS.find(b=>b.id===cartao.bandeira)||BANDEIRAS[6];
-                  const pago=(cartao.faturasPagas||{})[filtroMes]||false;
+                  const pago=faturasPagas[`${cartao.id}_${filtroMes}`]||false;
                   return(
                     <div key={cartao.id} style={{...S.prow,cursor:"pointer"}} onClick={()=>setModal({type:"verCartao",data:cartao})}>
                       <div style={{width:36,height:36,borderRadius:10,background:ban.cor+"33",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{ban.icon}</div>
@@ -359,7 +412,6 @@ export default function App() {
               <button style={S.bprimary} onClick={()=>setModal({type:"conta",data:null})}>+ Nova conta</button>
             </div>
 
-            {/* Faturas como linhas */}
             {faturas.length>0&&(
               <div style={{marginBottom:16}}>
                 <p style={{...S.bxtitle,marginBottom:8,color:"#f472b6"}}>💳 Faturas de cartão</p>
@@ -391,7 +443,6 @@ export default function App() {
               </div>
             )}
 
-            {/* Contas fixas */}
             {contasRS.length>0&&<p style={{...S.bxtitle,marginBottom:8,color:"#818cf8"}}>📋 Contas fixas</p>}
             {contasRS.sort((a,b)=>new Date(a.vencimento)-new Date(b.vencimento)).map(c=>{
               const cat=CATS.find(x=>x.id===c.categoria);
@@ -451,7 +502,7 @@ export default function App() {
               const ban=BANDEIRAS.find(b=>b.id===cartao.bandeira)||BANDEIRAS[6];
               const totMes=faturaCartao(cartao.id,filtroMes);
               const totCompras=compras.filter(c=>c.cartaoId===cartao.id).length;
-              const pago=(cartao.faturasPagas||{})[filtroMes]||false;
+              const pago=faturasPagas[`${cartao.id}_${filtroMes}`]||false;
               return(
                 <div key={cartao.id} style={{...S.ccard,borderLeft:`4px solid ${ban.cor}`,cursor:"pointer"}} onClick={()=>setModal({type:"verCartao",data:cartao})}>
                   <div style={S.ctop}>
@@ -485,8 +536,8 @@ export default function App() {
 
       {/* FAB */}
       <div style={S.fab}>
-        {tab==="cartoes"&&<FabBtn label="+ Compra" onClick={()=>setModal({type:"compra",data:null})} bg="linear-gradient(135deg,#f472b6,#818cf8)"/>}
-        {tab==="contas"&&<FabBtn label="+ Conta"  onClick={()=>setModal({type:"conta",data:null})}/>}
+        {tab==="cartoes"  &&<FabBtn label="+ Compra" onClick={()=>setModal({type:"compra",data:null})} bg="linear-gradient(135deg,#f472b6,#818cf8)"/>}
+        {tab==="contas"   &&<FabBtn label="+ Conta"  onClick={()=>setModal({type:"conta",data:null})}/>}
         {tab==="dashboard"&&<>
           <FabBtn label="+ Conta"  onClick={()=>setModal({type:"conta",data:null})}/>
           <FabBtn label="+ Cartão" onClick={()=>setModal({type:"cartao",data:null})} bg="linear-gradient(135deg,#f472b6,#818cf8)"/>
@@ -499,15 +550,12 @@ export default function App() {
 // ─── MODAL: VER CARTÃO ────────────────────────────────────────
 function VerCartao({cartao,compras,filtroMes,onNovaCompra,onEditCompra,onDelCompra,onEditCartao,onDelCartao}){
   const ban=BANDEIRAS.find(b=>b.id===cartao.bandeira)||BANDEIRAS[6];
-  const comprasMes=compras.filter(c=>c.cartaoId===cartao.id&&c.mes===filtroMes);
-  const total=comprasMes.reduce((s,c)=>s+Number(c.valor),0);
   const [mesSel,setMesSel]=useState(filtroMes);
   const comprasSel=compras.filter(c=>c.cartaoId===cartao.id&&c.mes===mesSel);
   const totalSel=comprasSel.reduce((s,c)=>s+Number(c.valor),0);
 
   return(
     <div>
-      {/* cabeçalho cartão */}
       <div style={{background:ban.cor+"22",borderRadius:12,padding:"16px",marginBottom:16,display:"flex",gap:14,alignItems:"center"}}>
         <div style={{width:50,height:50,borderRadius:14,background:ban.cor+"44",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>{ban.icon}</div>
         <div style={{flex:1}}>
@@ -520,7 +568,6 @@ function VerCartao({cartao,compras,filtroMes,onNovaCompra,onEditCompra,onDelComp
         </div>
       </div>
 
-      {/* seletor de mês */}
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
         <MesPicker value={mesSel} onChange={setMesSel}/>
         <span style={{color:"#f1f5f9",fontWeight:700,fontSize:16}}>{fmtBRL(totalSel)}</span>
@@ -572,7 +619,7 @@ function FormConta({data,filtroMes,onSave,onClose}){
         <input type="checkbox" id="rec" checked={!!f.recorrente} onChange={e=>s("recorrente",e.target.checked)} style={{width:16,height:16,accentColor:"#38bdf8"}}/>
         <label htmlFor="rec" style={{color:"#94a3b8",fontSize:14}}>🔁 Recorrente (mensal)</label>
       </div>
-      <Lbl>Observação</Lbl><Txa placeholder="Opcional..." value={f.obs} onChange={e=>s("obs",e.target.value)}/>
+      <Lbl>Observação</Lbl><Txa placeholder="Opcional..." value={f.obs||""} onChange={e=>s("obs",e.target.value)}/>
       <button style={{...S.bprimary,width:"100%",marginTop:18,padding:"13px"}} onClick={()=>onSave(f)}>
         {f.id?"Salvar":"Adicionar conta"}
       </button>
@@ -591,8 +638,8 @@ function FormCartao({data,onSave,onClose}){
       <Sel value={f.bandeira} onChange={e=>s("bandeira",e.target.value)}>
         {BANDEIRAS.map(b=><option key={b.id} value={b.id}>{b.icon} {b.label}</option>)}
       </Sel>
-      <Lbl>Limite (R$) — opcional</Lbl><Inp type="number" placeholder="0,00" value={f.limite} onChange={e=>s("limite",e.target.value)}/>
-      <Lbl>Observação</Lbl><Txa placeholder="Opcional..." value={f.obs} onChange={e=>s("obs",e.target.value)}/>
+      <Lbl>Limite (R$) — opcional</Lbl><Inp type="number" placeholder="0,00" value={f.limite||""} onChange={e=>s("limite",e.target.value)}/>
+      <Lbl>Observação</Lbl><Txa placeholder="Opcional..." value={f.obs||""} onChange={e=>s("obs",e.target.value)}/>
       <button style={{...S.bprimary,width:"100%",marginTop:18,padding:"13px",background:"linear-gradient(135deg,#f472b6,#818cf8)"}} onClick={()=>onSave(f)}>
         {f.id?"Salvar":"Adicionar cartão"}
       </button>
@@ -618,7 +665,7 @@ function FormCompra({data,cartoes,filtroMes,onSave,onClose}){
         <div><Lbl>Parcela atual</Lbl><Inp type="number" min="1" value={f.parcelaAtual} onChange={e=>s("parcelaAtual",e.target.value)}/></div>
         <div><Lbl>Total parcelas</Lbl><Inp type="number" min="1" value={f.totalParcelas} onChange={e=>s("totalParcelas",e.target.value)}/></div>
       </div>
-      <Lbl>Observação</Lbl><Txa placeholder="Opcional..." value={f.obs} onChange={e=>s("obs",e.target.value)}/>
+      <Lbl>Observação</Lbl><Txa placeholder="Opcional..." value={f.obs||""} onChange={e=>s("obs",e.target.value)}/>
       <button style={{...S.bprimary,width:"100%",marginTop:18,padding:"13px",background:"linear-gradient(135deg,#f472b6,#818cf8)"}} onClick={()=>onSave(f)}>
         {f.id?"Salvar":"Adicionar compra"}
       </button>
