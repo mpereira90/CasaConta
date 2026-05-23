@@ -49,31 +49,6 @@ const ST = {
 const EMPTY_CONTA  = {nome:"",categoria:"moradia",valor:"",vencimento:"",pago:false,recorrente:false,obs:""};
 const EMPTY_CARTAO = {nome:"",bandeira:"nubank",limite:"",obs:""};
 const EMPTY_COMPRA = {cartaoId:"",descricao:"",valor:"",totalParcelas:"1",parcelaAtual:"1",mes:"",obs:""};
-// teste aqui
-import { useEffect } from 'react'
-import { supabase } from '../lib/supabase'
-
-export default function Home() {
-  useEffect(() => {
-    async function testarConexao() {
-      const { data, error } = await supabase.from('contas').select('*')
-      if (error) {
-        alert("Erro na conexão com o banco: " + error.message)
-      } else {
-        alert("Conexão OK! Registros encontrados: " + data.length)
-      }
-    }
-    testarConexao()
-  }, [])
-
-  return (
-    <div>
-      <h1>CasaConta</h1>
-      <p>Testando conexão com Supabase...</p>
-    </div>
-  )
-}
-
 
 // ─── APP ─────────────────────────────────────────────────────
 export default function App() {
