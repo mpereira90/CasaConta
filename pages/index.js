@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { supabase } from '../lib/supabase';
 
 // ─── UTILS ───────────────────────────────────────────────────
 const fmtBRL = (v) => Number(v||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
