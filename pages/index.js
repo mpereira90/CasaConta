@@ -53,7 +53,7 @@ const ST = {
 
 const EMPTY_CONTA  = {nome:"",categoria:"moradia",valor:"",vencimento:"",pago:false,recorrente:false,parcelaAtual:"",totalParcelas:"",obs:""};
 const EMPTY_CARTAO = {nome:"",bandeira:"nubank",limite:"",obs:""};
-const EMPTY_COMPRA = {cartaoId:"",descricao:"",valor:"",totalParcelas:"1",mes:"",obs:""};
+const EMPTY_COMPRA = {cartaoId:"",descricao:"",valor:"",totalParcelas:"1",mes:"",obs:"",recorrente:false};
 
 // ─── LÓGICA DE RECORRÊNCIA E ATRASO ──────────────────────────
 function expandirContasParaMes(contas, filtroMes) {
@@ -319,11 +319,16 @@ export default function App() {
   const contasExpandidas = expandirContasParaMes(contas, filtroMes);
   const contasRS = contasExpandidas.map(c => ({...c, status: getStatusLinha(c)}));
 
-  // Expande compras parceladas para o mês correto
+  // Expande compras parceladas e recorrentes para o mês correto
   function comprasDoMes(cartaoId, mes) {
     const resultado = [];
     for (const c of compras) {
       if (c.cartaoId !== cartaoId) continue;
+      // Recorrente eterna — aparece todo mês a partir do mês de cadastro
+      if (c.recorrente) {
+        if (mes >= c.mes) resultado.push({...c, _numParcela: null, _totalParcelas: null, _recorrente: true});
+        continue;
+      }
       const total = Number(c.totalParcelas) || 1;
       if (total <= 1) {
         if (c.mes === mes) resultado.push({...c, _numParcela: 1, _totalParcelas: 1});
@@ -689,6 +694,10 @@ function VerCartao({cartao,compras,filtroMes,onNovaCompra,onEditCompra,onDelComp
     const resultado = [];
     for (const c of compras) {
       if (c.cartaoId !== cartaoId) continue;
+      if (c.recorrente) {
+        if (mes >= c.mes) resultado.push({...c, _numParcela: null, _totalParcelas: null, _recorrente: true});
+        continue;
+      }
       const total = Number(c.totalParcelas) || 1;
       if (total <= 1) {
         if (c.mes === mes) resultado.push({...c, _numParcela: 1, _totalParcelas: 1});
@@ -729,6 +738,7 @@ function VerCartao({cartao,compras,filtroMes,onNovaCompra,onEditCompra,onDelComp
           <div key={c.id} style={{background:"#0f172a",borderRadius:10,padding:"12px",marginBottom:6,display:"flex",alignItems:"center",gap:10}}>
             <div style={{flex:1}}>
               <p style={{color:"#f1f5f9",fontWeight:600,fontSize:14}}>{c.descricao}</p>
+              {c._recorrente&&<p style={{color:"#818cf8",fontSize:12}}>🔁 Recorrente mensal</p>}
               {c._totalParcelas>1&&<p style={{color:"#64748b",fontSize:12}}>Parcela {c._numParcela}/{c._totalParcelas} · Total {fmtBRL(Number(c.valor)*c._totalParcelas)}</p>}
               {c.obs&&<p style={{color:"#475569",fontSize:11,marginTop:2}}>💬 {c.obs}</p>}
             </div>
@@ -845,29 +855,38 @@ function FormCompra({data,cartoes,filtroMes,onSave,onClose}){
       </Sel>
       <Lbl>Mês da 1ª parcela *</Lbl><Inp type="month" value={f.mes} onChange={e=>s("mes",e.target.value)}/>
       <Lbl>Descrição *</Lbl><Inp placeholder="Ex: TV Samsung" value={f.descricao} onChange={e=>s("descricao",e.target.value)}/>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        <div>
-          <Lbl>Valor total da compra (R$)</Lbl>
-          <Inp type="number" placeholder="0,00" value={f.valorTotal||""} onChange={e=>{
-            s("valorTotal",e.target.value);
-            if(e.target.value && Number(f.totalParcelas)>1) s("valor",(Number(e.target.value)/Number(f.totalParcelas)).toFixed(2));
-          }}/>
-        </div>
-        <div>
-          <Lbl>Total de parcelas</Lbl>
-          <Inp type="number" min="1" placeholder="1 = à vista" value={f.totalParcelas} onChange={e=>{
-            s("totalParcelas",e.target.value);
-            if(f.valorTotal && Number(e.target.value)>1) s("valor",(Number(f.valorTotal)/Number(e.target.value)).toFixed(2));
-          }}/>
-        </div>
+      <div style={{display:"flex",gap:10,alignItems:"center",marginTop:14,marginBottom:4}}>
+        <input type="checkbox" id="rec_compra" checked={!!f.recorrente} onChange={e=>s("recorrente",e.target.checked)} style={{width:16,height:16,accentColor:"#818cf8"}}/>
+        <label htmlFor="rec_compra" style={{color:"#94a3b8",fontSize:14}}>🔁 Recorrente (assinatura mensal)</label>
       </div>
-      <Lbl>Valor de cada parcela (R$) *</Lbl>
+
+      {!f.recorrente&&<>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div>
+            <Lbl>Valor total da compra (R$)</Lbl>
+            <Inp type="number" placeholder="0,00" value={f.valorTotal||""} onChange={e=>{
+              s("valorTotal",e.target.value);
+              if(e.target.value && Number(f.totalParcelas)>1) s("valor",(Number(e.target.value)/Number(f.totalParcelas)).toFixed(2));
+            }}/>
+          </div>
+          <div>
+            <Lbl>Total de parcelas</Lbl>
+            <Inp type="number" min="1" placeholder="1 = à vista" value={f.totalParcelas} onChange={e=>{
+              s("totalParcelas",e.target.value);
+              if(f.valorTotal && Number(e.target.value)>1) s("valor",(Number(f.valorTotal)/Number(e.target.value)).toFixed(2));
+            }}/>
+          </div>
+        </div>
+        {termina&&total>1&&f.mes&&f.valor&&(
+          <p style={{fontSize:11,color:"#38bdf8",marginTop:6}}>
+            📅 {total}x de {fmtBRL(f.valor)} = {fmtBRL(Number(f.valor)*total)} total — última parcela em {termina.replace("-","/")}
+          </p>
+        )}
+      </>}
+
+      <Lbl>Valor {f.recorrente?"mensal":"de cada parcela"} (R$) *</Lbl>
       <Inp type="number" placeholder="0,00" value={f.valor} onChange={e=>s("valor",e.target.value)}/>
-      {termina&&total>1&&f.mes&&f.valor&&(
-        <p style={{fontSize:11,color:"#38bdf8",marginTop:6}}>
-          📅 {total}x de {fmtBRL(f.valor)} = {fmtBRL(Number(f.valor)*total)} total — última parcela em {termina.replace("-","/")}
-        </p>
-      )}
+      {f.recorrente&&<p style={{fontSize:11,color:"#818cf8",marginTop:6}}>🔁 Aparece todo mês a partir de {f.mes||"..."} até ser excluída</p>}
       <Lbl>Observação</Lbl><Txa placeholder="Opcional..." value={f.obs||""} onChange={e=>s("obs",e.target.value)}/>
       <button style={{...S.bprimary,width:"100%",marginTop:18,padding:"13px",background:"linear-gradient(135deg,#f472b6,#818cf8)"}} onClick={()=>onSave(f)}>
         {f.id?"Salvar":"Adicionar compra"}
