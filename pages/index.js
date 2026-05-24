@@ -294,7 +294,6 @@ export default function App() {
 
   // ── COMPRAS ──
   async function saveCompra(form) {
-    console.log("FORM RECORRENTE:", form.recorrente);
     if (!form.cartaoId||!form.descricao.trim()||!form.valor||!form.mes) { toast_("Preencha todos os campos obrigatórios","err"); return; }
     try {
       const saved = await upsertCompra({
@@ -390,7 +389,7 @@ export default function App() {
       {toast&&<div style={{...S.toast,background:toast.type==="err"?"#ef4444":"#10b981"}}>{toast.type==="err"?"⚠️":"✓"} {toast.msg}</div>}
 
       {confirm&&(
-        <div style={S.overlay} onClick={()=>setConfirm(null)}>
+        <div style={S.overlayTop} onClick={()=>setConfirm(null)}>
           <div style={S.mbox} onClick={e=>e.stopPropagation()}>
             <p style={S.mtitle}>Confirmar exclusão</p>
             <p style={S.msub}>"{confirm.nome||confirm.descricao}" será removido permanentemente.</p>
@@ -955,6 +954,7 @@ const S={
   app:    {minHeight:"100vh",background:"#0f172a",fontFamily:"'DM Sans',sans-serif",maxWidth:640,margin:"0 auto",color:"#f1f5f9"},
   toast:  {position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",color:"#fff",padding:"10px 22px",borderRadius:100,fontWeight:600,fontSize:14,zIndex:9999,boxShadow:"0 4px 20px rgba(0,0,0,.5)",whiteSpace:"nowrap",animation:"toastIn .25s ease"},
   overlay:{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:16},
+  overlayTop:{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9500,padding:16},
   mbox:   {background:"#1e293b",borderRadius:18,padding:22,maxWidth:430,width:"100%",boxShadow:"0 25px 60px rgba(0,0,0,.6)"},
   mtitle: {color:"#f1f5f9",fontWeight:700,fontSize:17,marginBottom:4},
   msub:   {color:"#64748b",fontSize:13,marginBottom:20},
