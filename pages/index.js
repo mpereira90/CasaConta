@@ -416,7 +416,7 @@ export default function App() {
                 cartao={modal.data} compras={compras} filtroMes={filtroMes}
                 onNovaCompra={()=>setModal({type:"compra",data:{cartaoId:modal.data.id,mes:filtroMes}})}
                 onEditCompra={c=>setModal({type:"compra",data:c})}
-                onDelCompra={c=>setConfirm({...c,_type:"compra"})}
+                onDelCompra={c=>{setModal(null);setConfirm({...c,_type:"compra"});}}
                 onEditCartao={()=>setModal({type:"cartao",data:modal.data})}
                 onDelCartao={()=>setConfirm({...modal.data,_type:"cartao"})}
               />
