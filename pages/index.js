@@ -729,7 +729,7 @@ function VerCartao({cartao,compras,filtroMes,onNovaCompra,onEditCompra,onDelComp
           <div key={c.id} style={{background:"#0f172a",borderRadius:10,padding:"12px",marginBottom:6,display:"flex",alignItems:"center",gap:10}}>
             <div style={{flex:1}}>
               <p style={{color:"#f1f5f9",fontWeight:600,fontSize:14}}>{c.descricao}</p>
-              {c._totalParcelas>1&&<p style={{color:"#64748b",fontSize:12}}>Parcela {c._numParcela}/{c._totalParcelas}</p>}
+              {c._totalParcelas>1&&<p style={{color:"#64748b",fontSize:12}}>Parcela {c._numParcela}/{c._totalParcelas} · Total {fmtBRL(Number(c.valor)*c._totalParcelas)}</p>}
               {c.obs&&<p style={{color:"#475569",fontSize:11,marginTop:2}}>💬 {c.obs}</p>}
             </div>
             <div style={{textAlign:"right"}}>
@@ -845,12 +845,27 @@ function FormCompra({data,cartoes,filtroMes,onSave,onClose}){
       </Sel>
       <Lbl>Mês da 1ª parcela *</Lbl><Inp type="month" value={f.mes} onChange={e=>s("mes",e.target.value)}/>
       <Lbl>Descrição *</Lbl><Inp placeholder="Ex: TV Samsung" value={f.descricao} onChange={e=>s("descricao",e.target.value)}/>
-      <Lbl>Valor de cada parcela (R$) *</Lbl><Inp type="number" placeholder="0,00" value={f.valor} onChange={e=>s("valor",e.target.value)}/>
-      <Lbl>Total de parcelas</Lbl>
-      <Inp type="number" min="1" placeholder="1 = à vista" value={f.totalParcelas} onChange={e=>s("totalParcelas",e.target.value)}/>
-      {termina&&total>1&&f.mes&&(
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div>
+          <Lbl>Valor total da compra (R$)</Lbl>
+          <Inp type="number" placeholder="0,00" value={f.valorTotal||""} onChange={e=>{
+            s("valorTotal",e.target.value);
+            if(e.target.value && Number(f.totalParcelas)>1) s("valor",(Number(e.target.value)/Number(f.totalParcelas)).toFixed(2));
+          }}/>
+        </div>
+        <div>
+          <Lbl>Total de parcelas</Lbl>
+          <Inp type="number" min="1" placeholder="1 = à vista" value={f.totalParcelas} onChange={e=>{
+            s("totalParcelas",e.target.value);
+            if(f.valorTotal && Number(e.target.value)>1) s("valor",(Number(f.valorTotal)/Number(e.target.value)).toFixed(2));
+          }}/>
+        </div>
+      </div>
+      <Lbl>Valor de cada parcela (R$) *</Lbl>
+      <Inp type="number" placeholder="0,00" value={f.valor} onChange={e=>s("valor",e.target.value)}/>
+      {termina&&total>1&&f.mes&&f.valor&&(
         <p style={{fontSize:11,color:"#38bdf8",marginTop:6}}>
-          📅 {total}x de {fmtBRL(f.valor)} — última parcela em {termina.replace("-","/")}
+          📅 {total}x de {fmtBRL(f.valor)} = {fmtBRL(Number(f.valor)*total)} total — última parcela em {termina.replace("-","/")}
         </p>
       )}
       <Lbl>Observação</Lbl><Txa placeholder="Opcional..." value={f.obs||""} onChange={e=>s("obs",e.target.value)}/>
