@@ -53,7 +53,7 @@ const ST = {
 
 const EMPTY_CONTA  = {nome:"",categoria:"moradia",valor:"",vencimento:"",pago:false,recorrente:false,parcelaAtual:"",totalParcelas:"",obs:""};
 const EMPTY_CARTAO = {nome:"",bandeira:"nubank",limite:"",obs:""};
-const EMPTY_COMPRA = {cartaoId:"",descricao:"",valor:"",totalParcelas:"1",parcelaAtual:"1",mes:"",obs:""};
+const EMPTY_COMPRA = {cartaoId:"",descricao:"",valor:"",totalParcelas:"1",mes:"",obs:""};
 
 // ─── LÓGICA DE RECORRÊNCIA E ATRASO ──────────────────────────
 function expandirContasParaMes(contas, filtroMes) {
@@ -319,8 +319,29 @@ export default function App() {
   const contasExpandidas = expandirContasParaMes(contas, filtroMes);
   const contasRS = contasExpandidas.map(c => ({...c, status: getStatusLinha(c)}));
 
+  // Expande compras parceladas para o mês correto
+  function comprasDoMes(cartaoId, mes) {
+    const resultado = [];
+    for (const c of compras) {
+      if (c.cartaoId !== cartaoId) continue;
+      const total = Number(c.totalParcelas) || 1;
+      if (total <= 1) {
+        if (c.mes === mes) resultado.push({...c, _numParcela: 1, _totalParcelas: 1});
+      } else {
+        for (let i = 0; i < total; i++) {
+          const mesParcela = addMeses(c.mes, i);
+          if (mesParcela === mes) {
+            resultado.push({...c, _numParcela: i + 1, _totalParcelas: total});
+            break;
+          }
+        }
+      }
+    }
+    return resultado;
+  }
+
   function faturaCartao(cartaoId, mes) {
-    return compras.filter(c=>c.cartaoId===cartaoId && c.mes===mes).reduce((s,c)=>s+Number(c.valor),0);
+    return comprasDoMes(cartaoId, mes).reduce((s,c)=>s+Number(c.valor),0);
   }
 
   const faturas = cartoes.map(cartao => {
@@ -489,7 +510,7 @@ export default function App() {
                       <div style={{width:36,height:36,borderRadius:10,background:ban.cor+"33",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>{ban.icon}</div>
                       <div style={{flex:1}}>
                         <p style={S.pnome}>{cartao.nome}</p>
-                        <p style={S.pdata}>{compras.filter(c=>c.cartaoId===cartao.id&&c.mes===filtroMes).length} compra{compras.filter(c=>c.cartaoId===cartao.id&&c.mes===filtroMes).length!==1?"s":""}</p>
+                        <p style={S.pdata}>{comprasDoMes(cartao.id,filtroMes).length} compra{comprasDoMes(cartao.id,filtroMes).length!==1?"s":""}</p>
                       </div>
                       <div style={{textAlign:"right"}}>
                         <p style={S.pvalor}>{fmtBRL(tot)}</p>
@@ -663,7 +684,27 @@ export default function App() {
 function VerCartao({cartao,compras,filtroMes,onNovaCompra,onEditCompra,onDelCompra,onEditCartao,onDelCartao}){
   const ban=BANDEIRAS.find(b=>b.id===cartao.bandeira)||BANDEIRAS[6];
   const [mesSel,setMesSel]=useState(filtroMes);
-  const comprasSel=compras.filter(c=>c.cartaoId===cartao.id&&c.mes===mesSel);
+  // Expande parceladas igual ao app principal
+  function comprasDoMesLocal(cartaoId, mes) {
+    const resultado = [];
+    for (const c of compras) {
+      if (c.cartaoId !== cartaoId) continue;
+      const total = Number(c.totalParcelas) || 1;
+      if (total <= 1) {
+        if (c.mes === mes) resultado.push({...c, _numParcela: 1, _totalParcelas: 1});
+      } else {
+        for (let i = 0; i < total; i++) {
+          const mesParcela = addMeses(c.mes, i);
+          if (mesParcela === mes) {
+            resultado.push({...c, _numParcela: i + 1, _totalParcelas: total});
+            break;
+          }
+        }
+      }
+    }
+    return resultado;
+  }
+  const comprasSel=comprasDoMesLocal(cartao.id, mesSel);
   const totalSel=comprasSel.reduce((s,c)=>s+Number(c.valor),0);
   return(
     <div>
@@ -688,7 +729,7 @@ function VerCartao({cartao,compras,filtroMes,onNovaCompra,onEditCompra,onDelComp
           <div key={c.id} style={{background:"#0f172a",borderRadius:10,padding:"12px",marginBottom:6,display:"flex",alignItems:"center",gap:10}}>
             <div style={{flex:1}}>
               <p style={{color:"#f1f5f9",fontWeight:600,fontSize:14}}>{c.descricao}</p>
-              {Number(c.totalParcelas)>1&&<p style={{color:"#64748b",fontSize:12}}>Parcela {c.parcelaAtual}/{c.totalParcelas}</p>}
+              {c._totalParcelas>1&&<p style={{color:"#64748b",fontSize:12}}>Parcela {c._numParcela}/{c._totalParcelas}</p>}
               {c.obs&&<p style={{color:"#475569",fontSize:11,marginTop:2}}>💬 {c.obs}</p>}
             </div>
             <div style={{textAlign:"right"}}>
@@ -792,6 +833,8 @@ function FormCartao({data,onSave,onClose}){
 function FormCompra({data,cartoes,filtroMes,onSave,onClose}){
   const [f,setF]=useState(data||{...EMPTY_COMPRA,cartaoId:cartoes[0]?.id||"",mes:filtroMes});
   const s=(k,v)=>setF(x=>({...x,[k]:v}));
+  const total = Number(f.totalParcelas)||1;
+  const termina = total>1 ? addMeses(f.mes||filtroMes, total-1) : null;
   return(
     <div>
       <FHeader title={f.id?"Editar Compra":"Nova Compra"} onClose={onClose}/>
@@ -800,13 +843,16 @@ function FormCompra({data,cartoes,filtroMes,onSave,onClose}){
         {cartoes.length===0&&<option value="">Nenhum cartão cadastrado</option>}
         {cartoes.map(c=>{ const b=BANDEIRAS.find(x=>x.id===c.bandeira)||BANDEIRAS[6]; return <option key={c.id} value={c.id}>{b.icon} {c.nome}</option>; })}
       </Sel>
-      <Lbl>Mês de referência *</Lbl><Inp type="month" value={f.mes} onChange={e=>s("mes",e.target.value)}/>
-      <Lbl>Descrição *</Lbl><Inp placeholder="Ex: Supermercado" value={f.descricao} onChange={e=>s("descricao",e.target.value)}/>
-      <Lbl>Valor da parcela (R$) *</Lbl><Inp type="number" placeholder="0,00" value={f.valor} onChange={e=>s("valor",e.target.value)}/>
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-        <div><Lbl>Parcela atual</Lbl><Inp type="number" min="1" value={f.parcelaAtual} onChange={e=>s("parcelaAtual",e.target.value)}/></div>
-        <div><Lbl>Total parcelas</Lbl><Inp type="number" min="1" value={f.totalParcelas} onChange={e=>s("totalParcelas",e.target.value)}/></div>
-      </div>
+      <Lbl>Mês da 1ª parcela *</Lbl><Inp type="month" value={f.mes} onChange={e=>s("mes",e.target.value)}/>
+      <Lbl>Descrição *</Lbl><Inp placeholder="Ex: TV Samsung" value={f.descricao} onChange={e=>s("descricao",e.target.value)}/>
+      <Lbl>Valor de cada parcela (R$) *</Lbl><Inp type="number" placeholder="0,00" value={f.valor} onChange={e=>s("valor",e.target.value)}/>
+      <Lbl>Total de parcelas</Lbl>
+      <Inp type="number" min="1" placeholder="1 = à vista" value={f.totalParcelas} onChange={e=>s("totalParcelas",e.target.value)}/>
+      {termina&&total>1&&f.mes&&(
+        <p style={{fontSize:11,color:"#38bdf8",marginTop:6}}>
+          📅 {total}x de {fmtBRL(f.valor)} — última parcela em {termina.replace("-","/")}
+        </p>
+      )}
       <Lbl>Observação</Lbl><Txa placeholder="Opcional..." value={f.obs||""} onChange={e=>s("obs",e.target.value)}/>
       <button style={{...S.bprimary,width:"100%",marginTop:18,padding:"13px",background:"linear-gradient(135deg,#f472b6,#818cf8)"}} onClick={()=>onSave(f)}>
         {f.id?"Salvar":"Adicionar compra"}
