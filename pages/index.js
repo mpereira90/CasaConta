@@ -109,9 +109,7 @@ export default function App() {
       setContas(prev => form.id ? prev.map(c => c.id===form.id ? saved : c) : [...prev, saved]);
       toast_(form.id ? "Conta atualizada!" : "Conta adicionada!");
       setModal(null);
-    } catch(e) { 
-      console.log("ERRO SUPABASE:", e);
-      toast_("Erro ao salvar conta","err"); }
+    } catch(e) { toast_("Erro ao salvar conta","err"); }
   }
 
   async function deleteConta(id) {
