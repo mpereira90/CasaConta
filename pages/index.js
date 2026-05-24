@@ -51,7 +51,7 @@ const ST = {
   vencido:  {label:"Vencido",  cor:"#ef4444", bg:"#ef444422"},
 };
 
-const EMPTY_CONTA  = {nome:"",categoria:"moradia",valor:"",vencimento:"",pago:false,recorrente:false,totalParcelas:"",obs:""};
+const EMPTY_CONTA  = {nome:"",categoria:"moradia",valor:"",vencimento:"",pago:false,recorrente:false,parcelaAtual:"",totalParcelas:"",obs:""};
 const EMPTY_CARTAO = {nome:"",bandeira:"nubank",limite:"",obs:""};
 const EMPTY_COMPRA = {cartaoId:"",descricao:"",valor:"",totalParcelas:"1",parcelaAtual:"1",mes:"",obs:""};
 
@@ -121,33 +121,40 @@ function expandirContasParaMes(contas, filtroMes) {
 
     // ── Parcelada (recorrente com totalParcelas definido) ──
     if (totalParcelas > 0) {
-      for (let i = 0; i < totalParcelas; i++) {
+      // parcelaAtual indica qual parcela cai no mês de vencimento (mb)
+      // Ex: financiamento mês Jun, parcela 4 de 48
+      // → parcela 4 = mb, parcela 5 = mb+1, parcela 3 = mb-1 etc.
+      const parcelaAtual = c.parcelaAtual ? Number(c.parcelaAtual) : 1;
+      const parcelasRestantes = totalParcelas - parcelaAtual + 1; // quantas ainda faltam a partir de mb
+
+      for (let i = 0; i < parcelasRestantes; i++) {
+        const numParcela = parcelaAtual + i;
         const mesParcela = addMeses(mb, i);
         const paga = pagoMeses[mesParcela] || false;
 
         if (mesParcela === filtroMes) {
           linhas.push({
             ...c,
-            id: `${c.id}_p${i+1}`,
+            id: `${c.id}_p${numParcela}`,
             _idOriginal: c.id,
             vencimento: `${mesParcela}-${dia}`,
             pago: paga,
-            _parcela: {atual: i+1, total: totalParcelas},
+            _parcela: {atual: numParcela, total: totalParcelas},
             _mesOrigem: mesParcela,
             _mesFiltro: mesParcela,
           });
         } else if (mesParcela < filtroMes && !paga) {
           linhas.push({
             ...c,
-            id: `${c.id}_p${i+1}_atrasada`,
+            id: `${c.id}_p${numParcela}_atrasada`,
             _idOriginal: c.id,
             vencimento: `${filtroMes}-${dia}`,
             pago: false,
-            _parcela: {atual: i+1, total: totalParcelas},
+            _parcela: {atual: numParcela, total: totalParcelas},
             _mesOrigem: mesParcela,
             _mesFiltro: mesParcela,
             _atrasada: true,
-            _labelAtraso: `Parcela ${i+1}/${totalParcelas} — atrasada de ${MESES[Number(mesParcela.split("-")[1])-1]}/${mesParcela.split("-")[0]}`,
+            _labelAtraso: `Parcela ${numParcela}/${totalParcelas} — atrasada de ${MESES[Number(mesParcela.split("-")[1])-1]}/${mesParcela.split("-")[0]}`,
           });
         }
       }
@@ -207,6 +214,7 @@ export default function App() {
         vencimento:    form.vencimento,
         pago:          form.pago,
         recorrente:    form.recorrente,
+        parcelaAtual:  form.parcelaAtual ? Number(form.parcelaAtual) : null,
         totalParcelas: form.totalParcelas ? Number(form.totalParcelas) : null,
         pagoMeses:     form.pagoMeses || {},
         obs:           form.obs || "",
@@ -723,18 +731,33 @@ function FormConta({data,filtroMes,onSave,onClose}){
 
       {f.recorrente&&(
         <div style={{marginTop:12,padding:"12px",background:"#0f172a",borderRadius:10,border:"1px solid #334155"}}>
-          <Lbl>Quantidade de parcelas</Lbl>
-          <Sel value={f.totalParcelas||""} onChange={e=>s("totalParcelas",e.target.value)}>
-            <option value="">Sem limite (eterna — luz, água etc.)</option>
-            {[2,3,4,5,6,7,8,9,10,11,12,18,24,36,48,60].map(n=>(
-              <option key={n} value={n}>{n}x — termina em {addMeses(f.vencimento?f.vencimento.substring(0,7):mesAtualStr(),n-1).replace("-","/")}</option>
-            ))}
-          </Sel>
-          <p style={{fontSize:11,color:"#475569",marginTop:6}}>
-            {f.totalParcelas
-              ? `Aparece por ${f.totalParcelas} meses a partir de ${f.vencimento?.substring(0,7)||"hoje"}`
-              : "Aparece todo mês indefinidamente"}
-          </p>
+          <p style={{color:"#64748b",fontSize:12,marginBottom:10}}>Deixe em branco se for eterna (luz, água, aluguel etc.)</p>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div>
+              <Lbl>Parcela atual</Lbl>
+              <Inp
+                type="number" min="1" placeholder="Ex: 4"
+                value={f.parcelaAtual||""}
+                onChange={e=>s("parcelaAtual",e.target.value)}
+              />
+            </div>
+            <div>
+              <Lbl>Total de parcelas</Lbl>
+              <Inp
+                type="number" min="1" placeholder="Ex: 48"
+                value={f.totalParcelas||""}
+                onChange={e=>s("totalParcelas",e.target.value)}
+              />
+            </div>
+          </div>
+          {f.parcelaAtual&&f.totalParcelas&&(
+            <p style={{fontSize:11,color:"#38bdf8",marginTop:8}}>
+              📅 Parcela {f.parcelaAtual} de {f.totalParcelas} — termina em {addMeses(f.vencimento?f.vencimento.substring(0,7):mesAtualStr(), Number(f.totalParcelas)-Number(f.parcelaAtual)).replace("-","/")}
+            </p>
+          )}
+          {(!f.parcelaAtual||!f.totalParcelas)&&(
+            <p style={{fontSize:11,color:"#475569",marginTop:8}}>🔁 Aparece todo mês indefinidamente</p>
+          )}
         </div>
       )}
 
