@@ -294,6 +294,7 @@ export default function App() {
 
   // ── COMPRAS ──
   async function saveCompra(form) {
+    console.log("FORM RECORRENTE:", form.recorrente);
     if (!form.cartaoId||!form.descricao.trim()||!form.valor||!form.mes) { toast_("Preencha todos os campos obrigatórios","err"); return; }
     try {
       const saved = await upsertCompra({
