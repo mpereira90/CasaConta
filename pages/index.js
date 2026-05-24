@@ -299,7 +299,7 @@ export default function App() {
       const saved = await upsertCompra({
         id: form.id || uid(), cartaoId: form.cartaoId, descricao: form.descricao,
         valor: form.valor, totalParcelas: form.totalParcelas, parcelaAtual: form.parcelaAtual,
-        mes: form.mes, obs: form.obs || "",
+        mes: form.mes, obs: form.obs || "", recorrente: form.recorrente || false,
       });
       setCompras(prev => form.id ? prev.map(c => c.id===form.id ? saved : c) : [...prev, saved]);
       toast_(form.id ? "Compra atualizada!" : "Compra adicionada!");
