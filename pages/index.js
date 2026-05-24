@@ -184,6 +184,12 @@ export default function App() {
   const [modal,        setModal]       = useState(null);
   const [confirm,      setConfirm]     = useState(null);
   const [filtroMes,    setFiltroMes]   = useState(mesAtualStr);
+  const [filtrocat,    setFiltrocat]   = useState("todas");
+  const [metaMensal,   setMetaMensal]  = useState(()=>{ try{ return Number(localStorage.getItem("cc-meta"))||0; }catch(e){return 0;} });
+  const [temaClaro,    setTemaClaro]   = useState(()=>{ try{ return localStorage.getItem("cc-tema")==="claro"; }catch(e){return false;} });
+
+  function toggleTema(){ setTemaClaro(t=>{ const n=!t; try{localStorage.setItem("cc-tema",n?"claro":"escuro");}catch(e){} return n; }); }
+  function salvarMeta(v){ const n=Number(v)||0; setMetaMensal(n); try{localStorage.setItem("cc-meta",n);}catch(e){} }
 
   useEffect(() => {
     (async () => {
@@ -383,7 +389,7 @@ export default function App() {
   );
 
   return (
-    <div style={S.app}>
+    <div style={{...S.app, background: temaClaro?"#f1f5f9":"#0f172a", color: temaClaro?"#0f172a":"#f1f5f9"}}>
       <style>{CSS}</style>
 
       {toast&&<div style={{...S.toast,background:toast.type==="err"?"#ef4444":"#10b981"}}>{toast.type==="err"?"⚠️":"✓"} {toast.msg}</div>}
@@ -408,6 +414,7 @@ export default function App() {
       {modal&&(
         <div style={S.overlay} onClick={()=>setModal(null)}>
           <div style={{...S.mbox,maxHeight:"92vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            {modal.type==="meta"      && <FormMeta meta={metaMensal} onSave={v=>{salvarMeta(v);setModal(null);}} onClose={()=>setModal(null)}/>}
             {modal.type==="conta"     && <FormConta   data={modal.data} filtroMes={filtroMes} onSave={saveConta}  onClose={()=>setModal(null)}/>}
             {modal.type==="cartao"    && <FormCartao  data={modal.data}                        onSave={saveCartao} onClose={()=>setModal(null)}/>}
             {modal.type==="compra"    && <FormCompra  data={modal.data} cartoes={cartoes} filtroMes={filtroMes} onSave={saveCompra} onClose={()=>setModal(null)}/>}
@@ -425,16 +432,20 @@ export default function App() {
         </div>
       )}
 
-      <header style={S.header}>
+      <header style={{...S.header, background: temaClaro?"#fff":"#1e293b", borderBottomColor: temaClaro?"#e2e8f0":"#334155"}}>
         <div style={S.htop}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <span style={S.logo}>💰 CasaConta</span>
-            <MesPicker value={filtroMes} onChange={setFiltroMes}/>
+            <span style={{...S.logo, color: temaClaro?"#0f172a":"#f1f5f9"}}>💰 CasaConta</span>
+            <MesPicker value={filtroMes} onChange={setFiltroMes} temaClaro={temaClaro}/>
+          </div>
+          <div style={{display:"flex",gap:6,alignItems:"center"}}>
+            <button onClick={()=>setModal({type:"meta"})} style={{background:"none",border:"none",fontSize:18,cursor:"pointer"}} title="Meta mensal">🎯</button>
+            <button onClick={toggleTema} style={{background:"none",border:"none",fontSize:18,cursor:"pointer"}} title="Alternar tema">{temaClaro?"🌙":"☀️"}</button>
           </div>
         </div>
         <nav style={S.nav}>
           {[["dashboard","📊 Resumo"],["contas","📋 Contas"],["cartoes","💳 Cartões"]].map(([v,l])=>(
-            <button key={v} style={{...S.nbtn,...(tab===v?S.nact:{})}} onClick={()=>setTab(v)}>{l}</button>
+            <button key={v} style={{...S.nbtn,...(tab===v?S.nact:{}), color: tab===v?"#38bdf8": temaClaro?"#64748b":"#64748b"}} onClick={()=>setTab(v)}>{l}</button>
           ))}
         </nav>
       </header>
@@ -453,13 +464,30 @@ export default function App() {
             </div>
 
             {totalGeral>0&&(
-              <div style={S.box}>
+              <div style={{...S.box, background: temaClaro?"#f8fafc":"#1e293b"}}>
                 <p style={S.bxtitle}>Progresso do mês</p>
                 <div style={S.pbar}><div style={{...S.pfill,width:`${Math.min((totalPago/totalGeral)*100,100)}%`}}/></div>
                 <div style={{display:"flex",justifyContent:"space-between",marginTop:6}}>
                   <span style={S.plabel}>{Math.round((totalPago/totalGeral)*100)}% pago</span>
                   <span style={S.plabel}>{fmtBRL(totalGeral-totalPago)} a pagar</span>
                 </div>
+              </div>
+            )}
+
+            {metaMensal>0&&(
+              <div style={{...S.box, background: temaClaro?"#f8fafc":"#1e293b"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                  <p style={S.bxtitle}>🎯 Meta mensal</p>
+                  <span style={{fontSize:12,color: totalGeral>metaMensal?"#ef4444":"#10b981",fontWeight:700}}>
+                    {fmtBRL(totalGeral)} / {fmtBRL(metaMensal)}
+                  </span>
+                </div>
+                <div style={S.pbar}>
+                  <div style={{...S.pfill, width:`${Math.min((totalGeral/metaMensal)*100,100)}%`, background: totalGeral>metaMensal?"linear-gradient(90deg,#ef4444,#f97316)":"linear-gradient(90deg,#10b981,#38bdf8)"}}/>
+                </div>
+                <p style={{fontSize:11,color: totalGeral>metaMensal?"#ef4444":"#64748b",marginTop:6}}>
+                  {totalGeral>metaMensal ? `⚠️ Estourou ${fmtBRL(totalGeral-metaMensal)} acima da meta` : `✓ ${fmtBRL(metaMensal-totalGeral)} ainda disponível`}
+                </p>
               </div>
             )}
 
@@ -543,8 +571,21 @@ export default function App() {
 
         {tab==="contas"&&(
           <div className="fadeUp">
-            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
-              <button style={S.bprimary} onClick={()=>setModal({type:"conta",data:null})}>+ Nova conta</button>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {["todas",...CATS.map(c=>c.id)].map(id=>{
+                  const cat=CATS.find(c=>c.id===id);
+                  const ativo=filtrocat===id;
+                  return(
+                    <button key={id} onClick={()=>setFiltrocat(id)} style={{
+                      background: ativo?"#38bdf8":"#1e293b",
+                      color: ativo?"#0f172a":"#64748b",
+                      border:"none",borderRadius:100,padding:"4px 10px",fontSize:12,fontWeight:ativo?700:400,cursor:"pointer"
+                    }}>{cat?`${cat.icon} ${cat.label}`:"Todas"}</button>
+                  );
+                })}
+              </div>
+              <button style={S.bprimary} onClick={()=>setModal({type:"conta",data:null})}>+ Nova</button>
             </div>
 
             {faturas.length>0&&(
@@ -578,8 +619,8 @@ export default function App() {
               </div>
             )}
 
-            {contasRS.length>0&&<p style={{...S.bxtitle,marginBottom:8,color:"#818cf8"}}>📋 Contas fixas</p>}
-            {contasRS.sort((a,b)=>new Date(a.vencimento)-new Date(b.vencimento)).map(c=>{
+            {contasRS.filter(c=>filtrocat==="todas"||c.categoria===filtrocat).length>0&&<p style={{...S.bxtitle,marginBottom:8,color:"#818cf8"}}>📋 Contas fixas</p>}
+            {contasRS.filter(c=>filtrocat==="todas"||c.categoria===filtrocat).sort((a,b)=>new Date(a.vencimento)-new Date(b.vencimento)).map(c=>{
               const cat=CATS.find(x=>x.id===c.categoria);
               const st=ST[c.status];
               const d=daysUntil(c.vencimento);
@@ -820,6 +861,21 @@ function FormConta({data,filtroMes,onSave,onClose}){
   );
 }
 
+function FormMeta({meta,onSave,onClose}){
+  const [v,setV]=useState(meta||"");
+  return(
+    <div>
+      <FHeader title="🎯 Meta de gastos" onClose={onClose}/>
+      <p style={{color:"#64748b",fontSize:13,marginBottom:16}}>Defina o limite de gastos mensais. Uma barra aparecerá no dashboard mostrando quanto você já comprometeu.</p>
+      <Lbl>Valor da meta (R$)</Lbl>
+      <Inp type="number" placeholder="Ex: 3000" value={v} onChange={e=>setV(e.target.value)}/>
+      {v&&<p style={{fontSize:12,color:"#38bdf8",marginTop:6}}>Meta: {Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})} / mês</p>}
+      <button style={{...S.bprimary,width:"100%",marginTop:18,padding:"13px"}} onClick={()=>onSave(v)}>Salvar meta</button>
+      {meta>0&&<button style={{width:"100%",marginTop:8,padding:"11px",background:"none",border:"1px solid #334155",borderRadius:12,color:"#64748b",cursor:"pointer"}} onClick={()=>onSave(0)}>Remover meta</button>}
+    </div>
+  );
+}
+
 function FormCartao({data,onSave,onClose}){
   const [f,setF]=useState(data||EMPTY_CARTAO);
   const s=(k,v)=>setF(x=>({...x,[k]:v}));
@@ -911,15 +967,17 @@ function Btn({bg,color,onClick,children}){
 function FabBtn({label,onClick,bg="linear-gradient(135deg,#38bdf8,#818cf8)"}){
   return <button style={{background:bg,color:"#fff",border:"none",borderRadius:100,padding:"10px 20px",fontWeight:700,fontSize:14,boxShadow:"0 4px 20px rgba(0,0,0,.4)"}} onClick={onClick}>{label}</button>;
 }
-function MesPicker({value,onChange}){
+function MesPicker({value,onChange,temaClaro}){
   const [y,m]=value.split("-").map(Number);
   const prev=()=>{ let nm=m-1,ny=y; if(nm<1){nm=12;ny--;} onChange(`${ny}-${String(nm).padStart(2,"0")}`); };
   const next=()=>{ let nm=m+1,ny=y; if(nm>12){nm=1;ny++;} onChange(`${ny}-${String(nm).padStart(2,"0")}`); };
+  const bg=temaClaro?"#e2e8f0":"#1e293b";
+  const cor=temaClaro?"#475569":"#94a3b8";
   return(
     <span style={{display:"inline-flex",alignItems:"center",gap:6}}>
-      <button style={{background:"#1e293b",border:"none",color:"#94a3b8",fontSize:16,width:28,height:28,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={prev}>‹</button>
-      <span style={{fontSize:13,color:"#94a3b8",textTransform:"capitalize",minWidth:70,textAlign:"center"}}>{MESES[m-1]} {y}</span>
-      <button style={{background:"#1e293b",border:"none",color:"#94a3b8",fontSize:16,width:28,height:28,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={next}>›</button>
+      <button style={{background:bg,border:"none",color:cor,fontSize:16,width:28,height:28,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={prev}>‹</button>
+      <span style={{fontSize:13,color:cor,textTransform:"capitalize",minWidth:70,textAlign:"center"}}>{MESES[m-1]} {y}</span>
+      <button style={{background:bg,border:"none",color:cor,fontSize:16,width:28,height:28,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={next}>›</button>
     </span>
   );
 }
