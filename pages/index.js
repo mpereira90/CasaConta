@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   getContas, upsertConta, deleteConta as dbDeleteConta, toggleContaPago,
   getCartoes, upsertCartao, deleteCartao as dbDeleteCartao,
@@ -14,6 +14,12 @@ const mesAtualStr = () => { const d=new Date(); return `${d.getFullYear()}-${Str
 const hoje0 = () => { const d=new Date(); d.setHours(0,0,0,0); return d; };
 const daysUntil = (s) => Math.round((new Date(s+"T00:00:00")-hoje0())/864e5);
 const MESES = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
+
+function addMeses(mesStr, n) {
+  const [y, m] = mesStr.split("-").map(Number);
+  const d = new Date(y, m - 1 + n, 1);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+}
 
 // ─── CATEGORIAS ──────────────────────────────────────────────
 const CATS = [
@@ -39,49 +45,146 @@ const BANDEIRAS = [
   {id:"outro",       label:"Outro",         cor:"#64748b", icon:"💳"},
 ];
 
-function getStatusConta(c){
-  if(c.pago) return "pago";
-  const d=daysUntil(c.vencimento);
-  return d<0?"vencido":"pendente";
-}
-
 const ST = {
   pago:     {label:"Pago",     cor:"#10b981", bg:"#10b98122"},
   pendente: {label:"Pendente", cor:"#f59e0b", bg:"#f59e0b22"},
   vencido:  {label:"Vencido",  cor:"#ef4444", bg:"#ef444422"},
 };
 
-const EMPTY_CONTA  = {nome:"",categoria:"moradia",valor:"",vencimento:"",pago:false,recorrente:false,obs:""};
+const EMPTY_CONTA  = {nome:"",categoria:"moradia",valor:"",vencimento:"",pago:false,recorrente:false,totalParcelas:"",obs:""};
 const EMPTY_CARTAO = {nome:"",bandeira:"nubank",limite:"",obs:""};
 const EMPTY_COMPRA = {cartaoId:"",descricao:"",valor:"",totalParcelas:"1",parcelaAtual:"1",mes:"",obs:""};
 
+// ─── LÓGICA DE RECORRÊNCIA E ATRASO ──────────────────────────
+function expandirContasParaMes(contas, filtroMes) {
+  const linhas = [];
+
+  for (const c of contas) {
+    if (!c.vencimento) continue;
+    const mb = c.vencimento.substring(0, 7);
+    const dia = c.vencimento.substring(8, 10);
+    const totalParcelas = c.totalParcelas ? Number(c.totalParcelas) : 0;
+    const pagoMeses = c.pagoMeses || {};
+
+    // ── Conta simples (não recorrente, sem parcelas) ──
+    if (!c.recorrente && totalParcelas === 0) {
+      if (mb === filtroMes) {
+        linhas.push({...c, _mesOrigem: mb, status: undefined});
+      } else if (mb < filtroMes && !c.pago) {
+        linhas.push({
+          ...c,
+          vencimento: `${filtroMes}-${dia}`,
+          _mesOrigem: mb,
+          _atrasada: true,
+          _mesFiltro: mb,
+          _labelAtraso: `Atrasada desde ${MESES[Number(mb.split("-")[1])-1]}/${mb.split("-")[0]}`,
+        });
+      }
+      continue;
+    }
+
+    // ── Recorrente eterna (sem parcelas definidas) ──
+    if (c.recorrente && totalParcelas === 0) {
+      if (filtroMes < mb) continue;
+
+      // Meses anteriores não pagos
+      let mes = mb;
+      while (mes < filtroMes) {
+        if (!pagoMeses[mes]) {
+          linhas.push({
+            ...c,
+            id: `${c.id}_${mes}`,
+            _idOriginal: c.id,
+            vencimento: `${mes}-${dia}`,
+            pago: false,
+            _mesOrigem: mes,
+            _mesFiltro: mes,
+            _atrasada: true,
+            _labelAtraso: `Atrasada — ${MESES[Number(mes.split("-")[1])-1]}/${mes.split("-")[0]}`,
+          });
+        }
+        mes = addMeses(mes, 1);
+      }
+
+      // Mês atual
+      linhas.push({
+        ...c,
+        id: `${c.id}_${filtroMes}`,
+        _idOriginal: c.id,
+        vencimento: `${filtroMes}-${dia}`,
+        pago: pagoMeses[filtroMes] || false,
+        _mesOrigem: filtroMes,
+        _mesFiltro: filtroMes,
+      });
+      continue;
+    }
+
+    // ── Parcelada (recorrente com totalParcelas definido) ──
+    if (totalParcelas > 0) {
+      for (let i = 0; i < totalParcelas; i++) {
+        const mesParcela = addMeses(mb, i);
+        const paga = pagoMeses[mesParcela] || false;
+
+        if (mesParcela === filtroMes) {
+          linhas.push({
+            ...c,
+            id: `${c.id}_p${i+1}`,
+            _idOriginal: c.id,
+            vencimento: `${mesParcela}-${dia}`,
+            pago: paga,
+            _parcela: {atual: i+1, total: totalParcelas},
+            _mesOrigem: mesParcela,
+            _mesFiltro: mesParcela,
+          });
+        } else if (mesParcela < filtroMes && !paga) {
+          linhas.push({
+            ...c,
+            id: `${c.id}_p${i+1}_atrasada`,
+            _idOriginal: c.id,
+            vencimento: `${filtroMes}-${dia}`,
+            pago: false,
+            _parcela: {atual: i+1, total: totalParcelas},
+            _mesOrigem: mesParcela,
+            _mesFiltro: mesParcela,
+            _atrasada: true,
+            _labelAtraso: `Parcela ${i+1}/${totalParcelas} — atrasada de ${MESES[Number(mesParcela.split("-")[1])-1]}/${mesParcela.split("-")[0]}`,
+          });
+        }
+      }
+    }
+  }
+
+  // Remove duplicatas
+  const seen = new Set();
+  return linhas.filter(l => { if (seen.has(l.id)) return false; seen.add(l.id); return true; });
+}
+
+function getStatusLinha(l) {
+  if (l.pago) return "pago";
+  const d = daysUntil(l.vencimento);
+  return d < 0 ? "vencido" : "pendente";
+}
+
 // ─── APP ─────────────────────────────────────────────────────
 export default function App() {
-  const [tab,        setTab]       = useState("dashboard");
-  const [contas,     setContas]    = useState([]);
-  const [cartoes,    setCartoes]   = useState([]);
-  const [compras,    setCompras]   = useState([]);
-  const [faturasPagas, setFaturasPagas] = useState({}); // { "cartaoId_mes": true }
-  const [loading,    setLoading]   = useState(true);
-  const [toast,      setToast]     = useState(null);
-  const [modal,      setModal]     = useState(null);
-  const [confirm,    setConfirm]   = useState(null);
-  const [filtroMes,  setFiltroMes] = useState(mesAtualStr);
+  const [tab,          setTab]         = useState("dashboard");
+  const [contas,       setContas]      = useState([]);
+  const [cartoes,      setCartoes]     = useState([]);
+  const [compras,      setCompras]     = useState([]);
+  const [faturasPagas, setFaturasPagas]= useState({});
+  const [loading,      setLoading]     = useState(true);
+  const [toast,        setToast]       = useState(null);
+  const [modal,        setModal]       = useState(null);
+  const [confirm,      setConfirm]     = useState(null);
+  const [filtroMes,    setFiltroMes]   = useState(mesAtualStr);
 
-  // ── Carregar dados do Supabase ──
   useEffect(() => {
     (async () => {
       try {
         const [c, ca, co, fp] = await Promise.all([
-          getContas(),
-          getCartoes(),
-          getCompras(),
-          getFaturasPagas(),
+          getContas(), getCartoes(), getCompras(), getFaturasPagas(),
         ]);
-        setContas(c);
-        setCartoes(ca);
-        setCompras(co);
-        setFaturasPagas(fp);
+        setContas(c); setCartoes(ca); setCompras(co); setFaturasPagas(fp);
       } catch (e) {
         toast_("Erro ao carregar dados", "err");
         console.error(e);
@@ -92,24 +195,26 @@ export default function App() {
 
   const toast_ = (msg, type="ok") => { setToast({msg,type}); setTimeout(()=>setToast(null),2800); };
 
-  // ── CONTAS FIXAS ──
+  // ── CONTAS ──
   async function saveConta(form) {
     if (!form.nome.trim()||!form.valor||!form.vencimento) { toast_("Preencha nome, valor e vencimento","err"); return; }
     try {
       const saved = await upsertConta({
-        id:         form.id || uid(),
-        nome:       form.nome,
-        categoria:  form.categoria,
-        valor:      form.valor,
-        vencimento: form.vencimento,
-        pago:       form.pago,
-        recorrente: form.recorrente,
-        obs:        form.obs || "",
+        id:            form.id || uid(),
+        nome:          form.nome,
+        categoria:     form.categoria,
+        valor:         form.valor,
+        vencimento:    form.vencimento,
+        pago:          form.pago,
+        recorrente:    form.recorrente,
+        totalParcelas: form.totalParcelas ? Number(form.totalParcelas) : null,
+        pagoMeses:     form.pagoMeses || {},
+        obs:           form.obs || "",
       });
       setContas(prev => form.id ? prev.map(c => c.id===form.id ? saved : c) : [...prev, saved]);
       toast_(form.id ? "Conta atualizada!" : "Conta adicionada!");
       setModal(null);
-    } catch(e) { toast_("Erro ao salvar conta","err"); }
+    } catch(e) { console.error(e); toast_("Erro ao salvar conta","err"); }
   }
 
   async function deleteConta(id) {
@@ -120,21 +225,40 @@ export default function App() {
     } catch(e) { toast_("Erro ao remover","err"); }
   }
 
-  async function togglePago(c, isFatura=false) {
+  async function togglePago(linha, isFatura=false) {
     if (isFatura) {
-      const atual = (faturasPagas[`${c.cartaoId}_${filtroMes}`]) || false;
+      const atual = faturasPagas[`${linha.cartaoId}_${filtroMes}`] || false;
       try {
-        await toggleFaturaPaga(c.cartaoId, filtroMes, !atual);
-        setFaturasPagas(prev => ({...prev, [`${c.cartaoId}_${filtroMes}`]: !atual}));
+        await toggleFaturaPaga(linha.cartaoId, filtroMes, !atual);
+        setFaturasPagas(prev => ({...prev, [`${linha.cartaoId}_${filtroMes}`]: !atual}));
         toast_(!atual ? "Fatura marcada como paga ✓" : "Fatura desmarcada");
       } catch(e) { toast_("Erro ao atualizar fatura","err"); }
-    } else {
-      try {
-        await toggleContaPago(c.id, !c.pago);
-        setContas(prev => prev.map(x => x.id===c.id ? {...x, pago: !c.pago} : x));
-        toast_(c.pago ? "Desmarcado" : "Marcado como pago ✓");
-      } catch(e) { toast_("Erro ao atualizar","err"); }
+      return;
     }
+
+    const idOriginal = linha._idOriginal || linha.id;
+    const contaOriginal = contas.find(c => c.id === idOriginal);
+    if (!contaOriginal) return;
+
+    // Conta simples
+    if (!contaOriginal.recorrente && !contaOriginal.totalParcelas) {
+      try {
+        await toggleContaPago(idOriginal, !linha.pago);
+        setContas(prev => prev.map(c => c.id===idOriginal ? {...c, pago: !linha.pago} : c));
+        toast_(linha.pago ? "Desmarcado" : "Marcado como pago ✓");
+      } catch(e) { toast_("Erro ao atualizar","err"); }
+      return;
+    }
+
+    // Recorrente ou parcelada — usa pagoMeses
+    const mesFiltro = linha._mesFiltro || filtroMes;
+    const pagoMeses = {...(contaOriginal.pagoMeses || {})};
+    pagoMeses[mesFiltro] = !linha.pago;
+    try {
+      const saved = await upsertConta({...contaOriginal, pagoMeses});
+      setContas(prev => prev.map(c => c.id===idOriginal ? saved : c));
+      toast_(linha.pago ? "Desmarcado" : "Marcado como pago ✓");
+    } catch(e) { toast_("Erro ao atualizar","err"); }
   }
 
   // ── CARTÕES ──
@@ -142,16 +266,13 @@ export default function App() {
     if (!form.nome.trim()) { toast_("Informe o nome do cartão","err"); return; }
     try {
       const saved = await upsertCartao({
-        id:       form.id || uid(),
-        nome:     form.nome,
-        bandeira: form.bandeira,
-        limite:   form.limite || null,
-        obs:      form.obs || "",
+        id: form.id || uid(), nome: form.nome,
+        bandeira: form.bandeira, limite: form.limite || null, obs: form.obs || "",
       });
       setCartoes(prev => form.id ? prev.map(c => c.id===form.id ? saved : c) : [...prev, saved]);
       toast_(form.id ? "Cartão atualizado!" : "Cartão adicionado!");
       setModal(null);
-    } catch(e) { toast_("Erro ao salvar cartão","err"); }
+    } catch(e) { console.error(e); toast_("Erro ao salvar cartão","err"); }
   }
 
   async function deleteCartao(id) {
@@ -168,19 +289,14 @@ export default function App() {
     if (!form.cartaoId||!form.descricao.trim()||!form.valor||!form.mes) { toast_("Preencha todos os campos obrigatórios","err"); return; }
     try {
       const saved = await upsertCompra({
-        id:            form.id || uid(),
-        cartaoId:      form.cartaoId,
-        descricao:     form.descricao,
-        valor:         form.valor,
-        totalParcelas: form.totalParcelas,
-        parcelaAtual:  form.parcelaAtual,
-        mes:           form.mes,
-        obs:           form.obs || "",
+        id: form.id || uid(), cartaoId: form.cartaoId, descricao: form.descricao,
+        valor: form.valor, totalParcelas: form.totalParcelas, parcelaAtual: form.parcelaAtual,
+        mes: form.mes, obs: form.obs || "",
       });
       setCompras(prev => form.id ? prev.map(c => c.id===form.id ? saved : c) : [...prev, saved]);
       toast_(form.id ? "Compra atualizada!" : "Compra adicionada!");
       setModal(null);
-    } catch(e) { toast_("Erro ao salvar compra","err"); }
+    } catch(e) { console.error(e); toast_("Erro ao salvar compra","err"); }
   }
 
   async function deleteCompra(id) {
@@ -192,42 +308,32 @@ export default function App() {
   }
 
   // ── COMPUTED ──
+  const contasExpandidas = expandirContasParaMes(contas, filtroMes);
+  const contasRS = contasExpandidas.map(c => ({...c, status: getStatusLinha(c)}));
+
   function faturaCartao(cartaoId, mes) {
     return compras.filter(c=>c.cartaoId===cartaoId && c.mes===mes).reduce((s,c)=>s+Number(c.valor),0);
   }
 
-  const faturas = cartoes
-    .map(cartao => {
-      const total = faturaCartao(cartao.id, filtroMes);
-      if (total===0) return null;
-      const pago = faturasPagas[`${cartao.id}_${filtroMes}`] || false;
-      const ban = BANDEIRAS.find(b=>b.id===cartao.bandeira)||BANDEIRAS[6];
-      return { _fatura:true, cartaoId:cartao.id, nome:`Fatura ${cartao.nome}`, valor:total, pago, cor:ban.cor, icon:ban.icon, bandLabel:ban.label };
-    })
-    .filter(Boolean);
-
-  const contasMes = contas.filter(c => {
-    if (!c.vencimento) return false;
-    const [y,m] = filtroMes.split("-");
-    return c.vencimento.startsWith(`${y}-${m}`);
-  });
-
-  const contasRS = contasMes.map(c => ({...c, status:getStatusConta(c)}));
+  const faturas = cartoes.map(cartao => {
+    const total = faturaCartao(cartao.id, filtroMes);
+    if (total===0) return null;
+    const pago = faturasPagas[`${cartao.id}_${filtroMes}`] || false;
+    const ban = BANDEIRAS.find(b=>b.id===cartao.bandeira)||BANDEIRAS[6];
+    return { _fatura:true, cartaoId:cartao.id, nome:`Fatura ${cartao.nome}`, valor:total, pago, cor:ban.cor, icon:ban.icon, bandLabel:ban.label };
+  }).filter(Boolean);
 
   const todasLinhas = [
     ...contasRS,
     ...faturas.map(f => ({...f, status: f.pago?"pago":"pendente"}))
   ];
 
-  const totalFixas  = contasRS.reduce((s,c)=>s+Number(c.valor),0);
-  const pagoFixas   = contasRS.filter(c=>c.status==="pago").reduce((s,c)=>s+Number(c.valor),0);
-  const totalFaturas= faturas.reduce((s,f)=>s+f.valor,0);
-  const pagoFaturas = faturas.filter(f=>f.pago).reduce((s,f)=>s+f.valor,0);
-  const totalGeral  = totalFixas+totalFaturas;
-  const totalPago   = pagoFixas+pagoFaturas;
-
-  const vencidoQty  = contasRS.filter(c=>c.status==="vencido").length;
-  const pendQty     = todasLinhas.filter(c=>c.status==="pendente"||c.status==="vencido").length;
+  const totalFixas   = contasRS.reduce((s,c)=>s+Number(c.valor),0);
+  const pagoFixas    = contasRS.filter(c=>c.status==="pago").reduce((s,c)=>s+Number(c.valor),0);
+  const totalFaturas = faturas.reduce((s,f)=>s+f.valor,0);
+  const pagoFaturas  = faturas.filter(f=>f.pago).reduce((s,f)=>s+f.valor,0);
+  const totalGeral   = totalFixas+totalFaturas;
+  const totalPago    = pagoFixas+pagoFaturas;
 
   const proximas = todasLinhas
     .filter(c=>c.status!=="pago")
@@ -256,9 +362,9 @@ export default function App() {
             <div style={S.mbrow}>
               <button style={S.bghost} onClick={()=>setConfirm(null)}>Cancelar</button>
               <button style={S.bdanger} onClick={()=>{
-                if(confirm._type==="cartao")       deleteCartao(confirm.id);
-                else if(confirm._type==="compra")  deleteCompra(confirm.id);
-                else                               deleteConta(confirm.id);
+                if(confirm._type==="cartao")      deleteCartao(confirm.id);
+                else if(confirm._type==="compra") deleteCompra(confirm.id);
+                else deleteConta(confirm._idOriginal || confirm.id);
               }}>Excluir</button>
             </div>
           </div>
@@ -268,14 +374,12 @@ export default function App() {
       {modal&&(
         <div style={S.overlay} onClick={()=>setModal(null)}>
           <div style={{...S.mbox,maxHeight:"92vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-            {modal.type==="conta"    && <FormConta   data={modal.data} filtroMes={filtroMes} onSave={saveConta}  onClose={()=>setModal(null)}/>}
-            {modal.type==="cartao"   && <FormCartao  data={modal.data}                        onSave={saveCartao} onClose={()=>setModal(null)}/>}
-            {modal.type==="compra"   && <FormCompra  data={modal.data} cartoes={cartoes} filtroMes={filtroMes} onSave={saveCompra} onClose={()=>setModal(null)}/>}
-            {modal.type==="verCartao"&& (
+            {modal.type==="conta"     && <FormConta   data={modal.data} filtroMes={filtroMes} onSave={saveConta}  onClose={()=>setModal(null)}/>}
+            {modal.type==="cartao"    && <FormCartao  data={modal.data}                        onSave={saveCartao} onClose={()=>setModal(null)}/>}
+            {modal.type==="compra"    && <FormCompra  data={modal.data} cartoes={cartoes} filtroMes={filtroMes} onSave={saveCompra} onClose={()=>setModal(null)}/>}
+            {modal.type==="verCartao" && (
               <VerCartao
-                cartao={modal.data}
-                compras={compras}
-                filtroMes={filtroMes}
+                cartao={modal.data} compras={compras} filtroMes={filtroMes}
                 onNovaCompra={()=>setModal({type:"compra",data:{cartaoId:modal.data.id,mes:filtroMes}})}
                 onEditCompra={c=>setModal({type:"compra",data:c})}
                 onDelCompra={c=>setConfirm({...c,_type:"compra"})}
@@ -287,7 +391,6 @@ export default function App() {
         </div>
       )}
 
-      {/* HEADER */}
       <header style={S.header}>
         <div style={S.htop}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -304,7 +407,6 @@ export default function App() {
 
       <main style={S.main}>
 
-        {/* ═══ DASHBOARD ═══ */}
         {tab==="dashboard"&&(
           <div className="fadeUp">
             <div style={S.g2}>
@@ -312,8 +414,8 @@ export default function App() {
               <BigCard label="Total pago"   value={fmtBRL(totalPago)}  sub={`${Math.round(totalGeral>0?(totalPago/totalGeral)*100:0)}% quitado`} cor="#10b981"/>
             </div>
             <div style={S.g2}>
-              <BigCard label="Contas fixas"   value={fmtBRL(totalFixas)}   sub={`${contasRS.length} conta${contasRS.length!==1?"s":""}`}  cor="#818cf8"/>
-              <BigCard label="Faturas cartão" value={fmtBRL(totalFaturas)} sub={`${faturas.length} cartão${faturas.length!==1?"ões":""}`} cor="#f472b6"/>
+              <BigCard label="Contas fixas"   value={fmtBRL(totalFixas)}   sub={`${contasRS.length} lançamento${contasRS.length!==1?"s":""}`} cor="#818cf8"/>
+              <BigCard label="Faturas cartão" value={fmtBRL(totalFaturas)} sub={`${faturas.length} cartão${faturas.length!==1?"ões":""}`}      cor="#f472b6"/>
             </div>
 
             {totalGeral>0&&(
@@ -353,8 +455,8 @@ export default function App() {
                     <div key={c.id} style={S.prow}>
                       <span style={{fontSize:20,width:30,textAlign:"center"}}>{cat?.icon}</span>
                       <div style={{flex:1}}>
-                        <p style={S.pnome}>{c.nome}</p>
-                        <p style={S.pdata}>{fmtDate(c.vencimento)}</p>
+                        <p style={S.pnome}>{c.nome}{c._atrasada?" ⚠️":""}</p>
+                        <p style={S.pdata}>{c._labelAtraso || fmtDate(c.vencimento)}</p>
                       </div>
                       <div style={{textAlign:"right"}}>
                         <p style={S.pvalor}>{fmtBRL(c.valor)}</p>
@@ -405,7 +507,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ═══ CONTAS ═══ */}
         {tab==="contas"&&(
           <div className="fadeUp">
             <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
@@ -449,13 +550,18 @@ export default function App() {
               const st=ST[c.status];
               const d=daysUntil(c.vencimento);
               return(
-                <div key={c.id} style={S.ccard}>
+                <div key={c.id} style={{...S.ccard, borderLeft: c._atrasada?"3px solid #ef4444":"3px solid transparent"}}>
                   <div style={S.ctop}>
                     <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
                       <span style={{fontSize:22}}>{cat?.icon}</span>
                       <div>
-                        <p style={S.cnome}>{c.nome}</p>
-                        <p style={S.ccat}>{cat?.label}{c.recorrente?" · 🔁":""}</p>
+                        <p style={S.cnome}>{c.nome}{c._atrasada?" ⚠️":""}</p>
+                        <p style={S.ccat}>
+                          {cat?.label}
+                          {c.recorrente&&!c.totalParcelas?" · 🔁 Recorrente":""}
+                          {c._parcela?` · Parcela ${c._parcela.atual}/${c._parcela.total}`:""}
+                          {c._labelAtraso?` · ${c._labelAtraso}`:""}
+                        </p>
                       </div>
                     </div>
                     <p style={S.cvalor}>{fmtBRL(c.valor)}</p>
@@ -469,7 +575,7 @@ export default function App() {
                       </span>}
                     </span>
                     <Btn bg={c.status==="pago"?"#1e293b":"#052e16"} color={c.status==="pago"?"#64748b":"#10b981"} onClick={()=>togglePago(c)}>{c.status==="pago"?"↩":"✓"}</Btn>
-                    <Btn bg="#1e3a5f" color="#38bdf8" onClick={()=>setModal({type:"conta",data:c})}>✏️</Btn>
+                    <Btn bg="#1e3a5f" color="#38bdf8" onClick={()=>setModal({type:"conta",data:contas.find(x=>x.id===(c._idOriginal||c.id))||c})}>✏️</Btn>
                     <Btn bg="#450a0a" color="#ef4444" onClick={()=>setConfirm({...c,_type:"conta"})}>🗑</Btn>
                   </div>
                   {c.obs&&<p style={S.obs}>💬 {c.obs}</p>}
@@ -483,7 +589,6 @@ export default function App() {
           </div>
         )}
 
-        {/* ═══ CARTÕES ═══ */}
         {tab==="cartoes"&&(
           <div className="fadeUp">
             <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
@@ -534,7 +639,6 @@ export default function App() {
         )}
       </main>
 
-      {/* FAB */}
       <div style={S.fab}>
         {tab==="cartoes"  &&<FabBtn label="+ Compra" onClick={()=>setModal({type:"compra",data:null})} bg="linear-gradient(135deg,#f472b6,#818cf8)"/>}
         {tab==="contas"   &&<FabBtn label="+ Conta"  onClick={()=>setModal({type:"conta",data:null})}/>}
@@ -553,7 +657,6 @@ function VerCartao({cartao,compras,filtroMes,onNovaCompra,onEditCompra,onDelComp
   const [mesSel,setMesSel]=useState(filtroMes);
   const comprasSel=compras.filter(c=>c.cartaoId===cartao.id&&c.mes===mesSel);
   const totalSel=comprasSel.reduce((s,c)=>s+Number(c.valor),0);
-
   return(
     <div>
       <div style={{background:ban.cor+"22",borderRadius:12,padding:"16px",marginBottom:16,display:"flex",gap:14,alignItems:"center"}}>
@@ -567,12 +670,10 @@ function VerCartao({cartao,compras,filtroMes,onNovaCompra,onEditCompra,onDelComp
           <Btn bg="#450a0a" color="#ef4444" onClick={onDelCartao}>🗑</Btn>
         </div>
       </div>
-
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
         <MesPicker value={mesSel} onChange={setMesSel}/>
         <span style={{color:"#f1f5f9",fontWeight:700,fontSize:16}}>{fmtBRL(totalSel)}</span>
       </div>
-
       {comprasSel.length===0
         ?<p style={{color:"#475569",fontSize:13,textAlign:"center",padding:"16px 0"}}>Nenhuma compra neste mês</p>
         :comprasSel.map(c=>(
@@ -591,7 +692,6 @@ function VerCartao({cartao,compras,filtroMes,onNovaCompra,onEditCompra,onDelComp
             </div>
           </div>
         ))}
-
       <button style={{...S.bprimary,width:"100%",marginTop:12}} onClick={onNovaCompra}>+ Nova compra</button>
     </div>
   );
@@ -615,10 +715,29 @@ function FormConta({data,filtroMes,onSave,onClose}){
       <Sel value={f.pago?"pago":"pendente"} onChange={e=>s("pago",e.target.value==="pago")}>
         <option value="pendente">Pendente</option><option value="pago">Pago</option>
       </Sel>
+
       <div style={{display:"flex",gap:10,alignItems:"center",marginTop:14}}>
         <input type="checkbox" id="rec" checked={!!f.recorrente} onChange={e=>s("recorrente",e.target.checked)} style={{width:16,height:16,accentColor:"#38bdf8"}}/>
-        <label htmlFor="rec" style={{color:"#94a3b8",fontSize:14}}>🔁 Recorrente (mensal)</label>
+        <label htmlFor="rec" style={{color:"#94a3b8",fontSize:14}}>🔁 Recorrente / Parcelada</label>
       </div>
+
+      {f.recorrente&&(
+        <div style={{marginTop:12,padding:"12px",background:"#0f172a",borderRadius:10,border:"1px solid #334155"}}>
+          <Lbl>Quantidade de parcelas</Lbl>
+          <Sel value={f.totalParcelas||""} onChange={e=>s("totalParcelas",e.target.value)}>
+            <option value="">Sem limite (eterna — luz, água etc.)</option>
+            {[2,3,4,5,6,7,8,9,10,11,12,18,24,36,48,60].map(n=>(
+              <option key={n} value={n}>{n}x — termina em {addMeses(f.vencimento?f.vencimento.substring(0,7):mesAtualStr(),n-1).replace("-","/")}</option>
+            ))}
+          </Sel>
+          <p style={{fontSize:11,color:"#475569",marginTop:6}}>
+            {f.totalParcelas
+              ? `Aparece por ${f.totalParcelas} meses a partir de ${f.vencimento?.substring(0,7)||"hoje"}`
+              : "Aparece todo mês indefinidamente"}
+          </p>
+        </div>
+      )}
+
       <Lbl>Observação</Lbl><Txa placeholder="Opcional..." value={f.obs||""} onChange={e=>s("obs",e.target.value)}/>
       <button style={{...S.bprimary,width:"100%",marginTop:18,padding:"13px"}} onClick={()=>onSave(f)}>
         {f.id?"Salvar":"Adicionar conta"}
@@ -714,7 +833,6 @@ const Inp=(p)=><input {...p} style={{width:"100%",padding:"10px 12px",background
 const Sel=(p)=><select {...p} style={{width:"100%",padding:"10px 12px",background:"#0f172a",border:"1.5px solid #334155",borderRadius:10,color:"#f1f5f9",fontSize:14}}/>;
 const Txa=(p)=><textarea {...p} style={{width:"100%",padding:"10px 12px",background:"#0f172a",border:"1.5px solid #334155",borderRadius:10,color:"#f1f5f9",fontSize:14,minHeight:60,resize:"vertical"}}/>;
 
-// ─── STYLES ──────────────────────────────────────────────────
 const CSS=`
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap');
   *{box-sizing:border-box;margin:0;padding:0;}
@@ -730,42 +848,42 @@ const CSS=`
   ::-webkit-scrollbar-thumb{background:#475569;border-radius:4px;}
 `;
 const S={
-  app:   {minHeight:"100vh",background:"#0f172a",fontFamily:"'DM Sans',sans-serif",maxWidth:640,margin:"0 auto",color:"#f1f5f9"},
-  toast: {position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",color:"#fff",padding:"10px 22px",borderRadius:100,fontWeight:600,fontSize:14,zIndex:9999,boxShadow:"0 4px 20px rgba(0,0,0,.5)",whiteSpace:"nowrap",animation:"toastIn .25s ease"},
+  app:    {minHeight:"100vh",background:"#0f172a",fontFamily:"'DM Sans',sans-serif",maxWidth:640,margin:"0 auto",color:"#f1f5f9"},
+  toast:  {position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",color:"#fff",padding:"10px 22px",borderRadius:100,fontWeight:600,fontSize:14,zIndex:9999,boxShadow:"0 4px 20px rgba(0,0,0,.5)",whiteSpace:"nowrap",animation:"toastIn .25s ease"},
   overlay:{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:16},
-  mbox:  {background:"#1e293b",borderRadius:18,padding:22,maxWidth:430,width:"100%",boxShadow:"0 25px 60px rgba(0,0,0,.6)"},
-  mtitle:{color:"#f1f5f9",fontWeight:700,fontSize:17,marginBottom:4},
-  msub:  {color:"#64748b",fontSize:13,marginBottom:20},
-  mbrow: {display:"flex",gap:10},
-  bghost:{flex:1,padding:"11px",background:"#0f172a",border:"1px solid #334155",borderRadius:10,color:"#94a3b8",fontWeight:600,fontSize:14},
+  mbox:   {background:"#1e293b",borderRadius:18,padding:22,maxWidth:430,width:"100%",boxShadow:"0 25px 60px rgba(0,0,0,.6)"},
+  mtitle: {color:"#f1f5f9",fontWeight:700,fontSize:17,marginBottom:4},
+  msub:   {color:"#64748b",fontSize:13,marginBottom:20},
+  mbrow:  {display:"flex",gap:10},
+  bghost: {flex:1,padding:"11px",background:"#0f172a",border:"1px solid #334155",borderRadius:10,color:"#94a3b8",fontWeight:600,fontSize:14},
   bdanger:{flex:1,padding:"11px",background:"#ef4444",border:"none",borderRadius:10,color:"#fff",fontWeight:700,fontSize:14},
-  header:{background:"#1e293b",borderBottom:"1px solid #334155",position:"sticky",top:0,zIndex:100},
-  htop:  {display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px 8px"},
-  logo:  {fontFamily:"'Playfair Display',serif",fontSize:20,color:"#f1f5f9",fontWeight:700},
-  nav:   {display:"flex",gap:2,padding:"0 12px 10px"},
-  nbtn:  {flex:1,padding:"8px 4px",background:"none",border:"none",borderRadius:10,fontSize:13,fontWeight:500,color:"#64748b"},
-  nact:  {background:"#0f172a",color:"#38bdf8",fontWeight:700},
-  main:  {padding:"14px 14px 100px"},
-  g2:    {display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10},
-  box:   {background:"#1e293b",borderRadius:16,padding:"16px",marginBottom:12},
+  header: {background:"#1e293b",borderBottom:"1px solid #334155",position:"sticky",top:0,zIndex:100},
+  htop:   {display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px 8px"},
+  logo:   {fontFamily:"'Playfair Display',serif",fontSize:20,color:"#f1f5f9",fontWeight:700},
+  nav:    {display:"flex",gap:2,padding:"0 12px 10px"},
+  nbtn:   {flex:1,padding:"8px 4px",background:"none",border:"none",borderRadius:10,fontSize:13,fontWeight:500,color:"#64748b"},
+  nact:   {background:"#0f172a",color:"#38bdf8",fontWeight:700},
+  main:   {padding:"14px 14px 100px"},
+  g2:     {display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10},
+  box:    {background:"#1e293b",borderRadius:16,padding:"16px",marginBottom:12},
   bxtitle:{fontSize:11,fontWeight:700,color:"#475569",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10},
-  pbar:  {height:8,background:"#0f172a",borderRadius:100,overflow:"hidden"},
-  pfill: {height:"100%",background:"linear-gradient(90deg,#38bdf8,#818cf8)",borderRadius:100,transition:"width .5s ease"},
-  plabel:{fontSize:12,color:"#64748b"},
-  badge: {fontSize:11,fontWeight:700,borderRadius:6,padding:"2px 8px",display:"inline-block"},
-  prow:  {display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:"1px solid #0f172a"},
-  pnome: {fontSize:14,fontWeight:600,color:"#f1f5f9",marginBottom:1},
-  pdata: {fontSize:12,color:"#64748b"},
-  pvalor:{fontSize:14,fontWeight:700,color:"#f1f5f9"},
-  empty: {color:"#475569",fontSize:13,textAlign:"center",padding:"12px 0"},
-  estate:{display:"flex",flexDirection:"column",alignItems:"center",padding:"48px 16px",gap:8},
-  ccard: {background:"#1e293b",borderRadius:14,padding:"14px",marginBottom:8},
-  ctop:  {display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10},
-  cnome: {fontSize:14,fontWeight:600,color:"#f1f5f9",marginBottom:2},
-  ccat:  {fontSize:12,color:"#64748b"},
-  cvalor:{fontSize:16,fontWeight:700,color:"#f1f5f9",fontFamily:"'Playfair Display',serif"},
-  cbot:  {display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"},
-  obs:   {fontSize:11,color:"#475569",marginTop:8,paddingTop:8,borderTop:"1px solid #0f172a"},
-  fab:   {position:"fixed",bottom:24,right:20,display:"flex",flexDirection:"column",gap:10,alignItems:"flex-end",zIndex:200},
+  pbar:   {height:8,background:"#0f172a",borderRadius:100,overflow:"hidden"},
+  pfill:  {height:"100%",background:"linear-gradient(90deg,#38bdf8,#818cf8)",borderRadius:100,transition:"width .5s ease"},
+  plabel: {fontSize:12,color:"#64748b"},
+  badge:  {fontSize:11,fontWeight:700,borderRadius:6,padding:"2px 8px",display:"inline-block"},
+  prow:   {display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:"1px solid #0f172a"},
+  pnome:  {fontSize:14,fontWeight:600,color:"#f1f5f9",marginBottom:1},
+  pdata:  {fontSize:12,color:"#64748b"},
+  pvalor: {fontSize:14,fontWeight:700,color:"#f1f5f9"},
+  empty:  {color:"#475569",fontSize:13,textAlign:"center",padding:"12px 0"},
+  estate: {display:"flex",flexDirection:"column",alignItems:"center",padding:"48px 16px",gap:8},
+  ccard:  {background:"#1e293b",borderRadius:14,padding:"14px",marginBottom:8},
+  ctop:   {display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10},
+  cnome:  {fontSize:14,fontWeight:600,color:"#f1f5f9",marginBottom:2},
+  ccat:   {fontSize:12,color:"#64748b"},
+  cvalor: {fontSize:16,fontWeight:700,color:"#f1f5f9",fontFamily:"'Playfair Display',serif"},
+  cbot:   {display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"},
+  obs:    {fontSize:11,color:"#475569",marginTop:8,paddingTop:8,borderTop:"1px solid #0f172a"},
+  fab:    {position:"fixed",bottom:24,right:20,display:"flex",flexDirection:"column",gap:10,alignItems:"flex-end",zIndex:200},
   bprimary:{background:"linear-gradient(135deg,#38bdf8,#818cf8)",color:"#0f172a",border:"none",borderRadius:12,fontWeight:700,fontSize:14,padding:"10px 20px"},
 };
