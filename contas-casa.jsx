@@ -758,33 +758,33 @@ function VerCartao({cartao,compras,filtroMes,onNovaCompra,onEditCompra,onDelComp
   const totalSel=comprasSel.reduce((s,c)=>s+Number(c.valor),0);
   return(
     <div>
-      <div style={{background:ban.cor+"22",borderRadius:12,padding:"16px",marginBottom:16,display:"flex",gap:14,alignItems:"center"}}>
-        <div style={{width:50,height:50,borderRadius:14,background:ban.cor+"44",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>{ban.icon}</div>
+      <div style={{background:"#f8fafc",borderRadius:12,padding:"16px",marginBottom:16,display:"flex",gap:14,alignItems:"center",borderLeft:`4px solid ${ban.cor}`,border:`1px solid #e2e8f0`,borderLeft:`4px solid ${ban.cor}`}}>
+        <div style={{width:50,height:50,borderRadius:14,background:ban.cor+"18",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>{ban.icon}</div>
         <div style={{flex:1}}>
-          <p style={{color:"#f1f5f9",fontWeight:700,fontSize:18,fontFamily:"'Playfair Display',serif"}}>{cartao.nome}</p>
-          <p style={{color:"#94a3b8",fontSize:13}}>{ban.label}{cartao.limite?` · Limite ${fmtBRL(cartao.limite)}`:""}</p>
+          <p style={{color:"#1e293b",fontWeight:700,fontSize:18,fontFamily:"'Playfair Display',serif"}}>{cartao.nome}</p>
+          <p style={{color:"#64748b",fontSize:13}}>{ban.label}{cartao.limite?` · Limite ${fmtBRL(cartao.limite)}`:""}</p>
         </div>
         <div style={{display:"flex",gap:6}}>
           <Btn bg="#eff6ff" color="#3b82f6" onClick={onEditCartao}>✏️</Btn>
           <Btn bg="#fff1f2" color="#ef4444" onClick={onDelCartao}>🗑</Btn>
         </div>
       </div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,padding:"10px 12px",background:"#f8fafc",borderRadius:10,border:"1px solid #e2e8f0"}}>
         <MesPicker value={mesSel} onChange={setMesSel}/>
-        <span style={{color:"#f1f5f9",fontWeight:700,fontSize:16}}>{fmtBRL(totalSel)}</span>
+        <span style={{color:"#0f172a",fontWeight:800,fontSize:16}}>{fmtBRL(totalSel)}</span>
       </div>
       {comprasSel.length===0
         ?<p style={{color:"#475569",fontSize:13,textAlign:"center",padding:"16px 0"}}>Nenhuma compra neste mês</p>
         :comprasSel.map(c=>(
-          <div key={c.id} style={{background:"#f8fafc",borderRadius:10,padding:"12px",marginBottom:6,display:"flex",alignItems:"center",gap:10,border:"1px solid #e2e8f0"}}>
+          <div key={c.id} style={{background:"#fff",borderRadius:10,padding:"12px",marginBottom:6,display:"flex",alignItems:"center",gap:10,border:"1px solid #e2e8f0",boxShadow:"0 1px 4px rgba(15,23,42,.06)"}}>
             <div style={{flex:1}}>
-              <p style={{color:"#f1f5f9",fontWeight:600,fontSize:14}}>{c.descricao}</p>
+              <p style={{color:"#0f172a",fontWeight:700,fontSize:14}}>{c.descricao}</p>
               {c._recorrente&&<p style={{color:"#6366f1",fontSize:12}}>🔁 Recorrente mensal</p>}
-              {c._totalParcelas>1&&<p style={{color:"#64748b",fontSize:12}}>Parcela {c._numParcela}/{c._totalParcelas} · Total {fmtBRL(Number(c.valor)*c._totalParcelas)}</p>}
-              {c.obs&&<p style={{color:"#475569",fontSize:11,marginTop:2}}>💬 {c.obs}</p>}
+              {c._totalParcelas>1&&<p style={{color:"#475569",fontSize:12,marginTop:2}}>Parcela {c._numParcela}/{c._totalParcelas} · Total {fmtBRL(Number(c.valor)*c._totalParcelas)}</p>}
+              {c.obs&&<p style={{color:"#64748b",fontSize:11,marginTop:2}}>💬 {c.obs}</p>}
             </div>
             <div style={{textAlign:"right"}}>
-              <p style={{color:"#f1f5f9",fontWeight:700,fontSize:15}}>{fmtBRL(c.valor)}</p>
+              <p style={{color:"#0f172a",fontWeight:800,fontSize:15}}>{fmtBRL(c.valor)}</p>
               <div style={{display:"flex",gap:4,justifyContent:"flex-end",marginTop:4}}>
                 <Btn bg="#eff6ff" color="#3b82f6" onClick={()=>onEditCompra(c)}>✏️</Btn>
                 <Btn bg="#fff1f2" color="#ef4444" onClick={()=>onDelCompra(c)}>🗑</Btn>
@@ -955,9 +955,9 @@ function FormCompra({data,cartoes,filtroMes,onSave,onClose}){
 function BigCard({label,value,sub,cor}){
   return(
     <div style={{background:"#fff",borderRadius:16,padding:"16px",borderTop:`3px solid ${cor}`,boxShadow:"0 1px 6px rgba(15,23,42,.07)"}}>
-      <p style={{fontSize:11,color:"#94a3b8",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>{label}</p>
-      <p style={{fontSize:19,fontWeight:700,color:"#0f172a",fontFamily:"'Playfair Display',serif",marginBottom:2}}>{value}</p>
-      <p style={{fontSize:11,color:"#94a3b8"}}>{sub}</p>
+      <p style={{fontSize:11,color:"#64748b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>{label}</p>
+      <p style={{fontSize:19,fontWeight:700,color:"#1e293b",fontFamily:"'Playfair Display',serif",marginBottom:2}}>{value}</p>
+      <p style={{fontSize:11,color:"#64748b"}}>{sub}</p>
     </div>
   );
 }
@@ -971,13 +971,13 @@ function MesPicker({value,onChange,temaClaro}){
   const [y,m]=value.split("-").map(Number);
   const prev=()=>{ let nm=m-1,ny=y; if(nm<1){nm=12;ny--;} onChange(`${ny}-${String(nm).padStart(2,"0")}`); };
   const next=()=>{ let nm=m+1,ny=y; if(nm>12){nm=1;ny++;} onChange(`${ny}-${String(nm).padStart(2,"0")}`); };
-  const bg=temaClaro?"#e2e8f0":"#1e293b";
-  const cor=temaClaro?"#475569":"#94a3b8";
+  const bg="#f1f5f9";
+  const cor="#475569";
   return(
     <span style={{display:"inline-flex",alignItems:"center",gap:6}}>
-      <button style={{background:bg,border:"none",color:cor,fontSize:16,width:28,height:28,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={prev}>‹</button>
-      <span style={{fontSize:13,color:cor,textTransform:"capitalize",minWidth:70,textAlign:"center"}}>{MESES[m-1]} {y}</span>
-      <button style={{background:bg,border:"none",color:cor,fontSize:16,width:28,height:28,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={next}>›</button>
+      <button style={{background:"#f1f5f9",border:"none",color:"#475569",fontSize:16,width:28,height:28,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={prev}>‹</button>
+      <span style={{fontSize:13,color:"#475569",fontWeight:600,textTransform:"capitalize",minWidth:70,textAlign:"center"}}>{MESES[m-1]} {y}</span>
+      <button style={{background:"#f1f5f9",border:"none",color:"#475569",fontSize:16,width:28,height:28,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={next}>›</button>
     </span>
   );
 }
@@ -1010,7 +1010,7 @@ const CSS=`
   body{background:#f8fafc;}
 `;
 const S={
-  app:    {minHeight:"100vh",background:"#f8fafc",fontFamily:"'Inter',sans-serif",maxWidth:640,margin:"0 auto",color:"#0f172a"},
+  app:    {minHeight:"100vh",background:"#f8fafc",fontFamily:"'Inter',sans-serif",maxWidth:640,margin:"0 auto",color:"#1e293b"},
   toast:  {position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",color:"#fff",padding:"10px 22px",borderRadius:100,fontWeight:600,fontSize:14,zIndex:9999,boxShadow:"0 4px 24px rgba(99,102,241,.25)",whiteSpace:"nowrap",animation:"toastIn .25s ease"},
   overlay:{position:"fixed",inset:0,background:"rgba(15,23,42,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:16},
   overlayTop:{position:"fixed",inset:0,background:"rgba(15,23,42,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9500,padding:16},
@@ -1029,22 +1029,22 @@ const S={
   main:   {padding:"14px 14px 100px"},
   g2:     {display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10},
   box:    {background:"#fff",borderRadius:16,padding:"16px",marginBottom:12,boxShadow:"0 1px 6px rgba(15,23,42,.06)"},
-  bxtitle:{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10},
+  bxtitle:{fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10},
   pbar:   {height:8,background:"#f1f5f9",borderRadius:100,overflow:"hidden"},
   pfill:  {height:"100%",background:"linear-gradient(90deg,#6366f1,#8b5cf6)",borderRadius:100,transition:"width .5s ease"},
   plabel: {fontSize:12,color:"#94a3b8"},
   badge:  {fontSize:11,fontWeight:700,borderRadius:6,padding:"2px 8px",display:"inline-block"},
   prow:   {display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:"1px solid #f1f5f9"},
-  pnome:  {fontSize:14,fontWeight:600,color:"#0f172a",marginBottom:1},
-  pdata:  {fontSize:12,color:"#94a3b8"},
-  pvalor: {fontSize:14,fontWeight:700,color:"#0f172a"},
+  pnome:  {fontSize:14,fontWeight:600,color:"#1e293b",marginBottom:1},
+  pdata:  {fontSize:12,color:"#64748b"},
+  pvalor: {fontSize:14,fontWeight:700,color:"#1e293b"},
   empty:  {color:"#94a3b8",fontSize:13,textAlign:"center",padding:"12px 0"},
   estate: {display:"flex",flexDirection:"column",alignItems:"center",padding:"48px 16px",gap:8},
   ccard:  {background:"#fff",borderRadius:16,padding:"14px",marginBottom:8,boxShadow:"0 1px 6px rgba(15,23,42,.06)"},
   ctop:   {display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10},
-  cnome:  {fontSize:14,fontWeight:600,color:"#0f172a",marginBottom:2},
-  ccat:   {fontSize:12,color:"#94a3b8"},
-  cvalor: {fontSize:16,fontWeight:700,color:"#0f172a",fontFamily:"'Playfair Display',serif"},
+  cnome:  {fontSize:14,fontWeight:600,color:"#1e293b",marginBottom:2},
+  ccat:   {fontSize:12,color:"#64748b"},
+  cvalor: {fontSize:16,fontWeight:700,color:"#1e293b",fontFamily:"'Playfair Display',serif"},
   cbot:   {display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"},
   obs:    {fontSize:11,color:"#94a3b8",marginTop:8,paddingTop:8,borderTop:"1px solid #f1f5f9"},
   fab:    {position:"fixed",bottom:24,right:20,display:"flex",flexDirection:"column",gap:10,alignItems:"flex-end",zIndex:200},
