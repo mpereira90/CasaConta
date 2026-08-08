@@ -46,7 +46,7 @@ const BANDEIRAS = [
 ];
 
 const ST = {
-  pago:     {label:"Pago",     cor:"#16a34a", bg:"#dcfce7"},
+  pago:     {label:"Pago",     cor:"#059669", bg:"#d1fae5"},
   pendente: {label:"Pendente", cor:"#d97706", bg:"#fef3c7"},
   vencido:  {label:"Vencido",  cor:"#dc2626", bg:"#fee2e2"},
 };
@@ -382,8 +382,8 @@ export default function App() {
 
   if (loading) return (
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",background:"#f8fafc"}}>
-      <div style={{width:40,height:40,border:"3px solid #e2e8f0",borderTop:"3px solid #6366f1",borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
-      <p style={{color:"#94a3b8",marginTop:16,fontSize:13}}>Carregando dados...</p>
+      <div style={{width:40,height:40,border:"3px solid #e5e7eb",borderTop:"3px solid #4f46e5",borderRadius:"50%",animation:"spin .8s linear infinite"}}/>
+      <p style={{color:"#9ca3af",marginTop:16,fontSize:13}}>Carregando dados...</p>
       <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
@@ -455,12 +455,12 @@ export default function App() {
         {tab==="dashboard"&&(
           <div className="fadeUp">
             <div style={S.g2}>
-              <BigCard label="Total do mês" value={fmtBRL(totalGeral)} sub={`${todasLinhas.length} lançamentos`} cor="#6366f1"/>
+              <BigCard label="Total do mês" value={fmtBRL(totalGeral)} sub={`${todasLinhas.length} lançamentos`} cor="#4f46e5"/>
               <BigCard label="Total pago"   value={fmtBRL(totalPago)}  sub={`${Math.round(totalGeral>0?(totalPago/totalGeral)*100:0)}% quitado`} cor="#10b981"/>
             </div>
             <div style={S.g2}>
-              <BigCard label="Contas fixas"   value={fmtBRL(totalFixas)}   sub={`${contasRS.length} lançamento${contasRS.length!==1?"s":""}`} cor="#6366f1"/>
-              <BigCard label="Faturas cartão" value={fmtBRL(totalFaturas)} sub={`${faturas.length} cartão${faturas.length!==1?"ões":""}`}      cor="#7c3aed"/>
+              <BigCard label="Contas fixas"   value={fmtBRL(totalFixas)}   sub={`${contasRS.length} lançamento${contasRS.length!==1?"s":""}`} cor="#4f46e5"/>
+              <BigCard label="Faturas cartão" value={fmtBRL(totalFaturas)} sub={`${faturas.length} cartão${faturas.length!==1?"ões":""}`}      cor="#4f46e5"/>
             </div>
 
             {totalGeral>0&&(
@@ -506,7 +506,7 @@ export default function App() {
                         </div>
                         <div style={{textAlign:"right"}}>
                           <p style={S.pvalor}>{fmtBRL(c.valor)}</p>
-                          <span style={{...S.badge,background:"#ede9fe",color:"#7c3aed"}}>Fatura</span>
+                          <span style={{...S.badge,background:"#ede9fe",color:"#4f46e5"}}>Fatura</span>
                         </div>
                       </div>
                     );
@@ -547,7 +547,7 @@ export default function App() {
                       </div>
                       <div style={{textAlign:"right"}}>
                         <p style={S.pvalor}>{fmtBRL(tot)}</p>
-                        <span style={{...S.badge,background:pago?"#10b98122":"#ede9fe",color:pago?"#10b981":"#7c3aed"}}>{pago?"Pago":"Aberta"}</span>
+                        <span style={{...S.badge,background:pago?"#10b98122":"#ede9fe",color:pago?"#10b981":"#4f46e5"}}>{pago?"Pago":"Aberta"}</span>
                       </div>
                     </div>
                   );
@@ -558,11 +558,11 @@ export default function App() {
             {todasLinhas.length===0&&cartoes.length===0&&(
               <div style={S.estate}>
                 <div style={{fontSize:52,marginBottom:10}}>🏠</div>
-                <p style={{color:"#f1f5f9",fontWeight:700,fontSize:20,fontFamily:"'Playfair Display',serif",marginBottom:6}}>Comece agora!</p>
-                <p style={{color:"#64748b",fontSize:13,marginBottom:20,textAlign:"center"}}>Adicione contas fixas e cadastre seus cartões</p>
+                <p style={{color:"#111827",fontWeight:700,fontSize:20,fontFamily:"'Playfair Display',serif",marginBottom:6}}>Comece agora!</p>
+                <p style={{color:"#6b7280",fontSize:13,marginBottom:20,textAlign:"center"}}>Adicione contas fixas e cadastre seus cartões</p>
                 <div style={{display:"flex",gap:10}}>
                   <button style={S.bprimary} onClick={()=>setModal({type:"conta",data:null})}>+ Conta</button>
-                  <button style={{...S.bprimary,background:"linear-gradient(135deg,#f472b6,#818cf8)"}} onClick={()=>setModal({type:"cartao",data:null})}>+ Cartão</button>
+                  <button style={{...S.bprimary,background:"#4f46e5"}} onClick={()=>setModal({type:"cartao",data:null})}>+ Cartão</button>
                 </div>
               </div>
             )}
@@ -578,7 +578,7 @@ export default function App() {
                   const ativo=filtrocat===id;
                   return(
                     <button key={id} onClick={()=>setFiltrocat(id)} style={{
-                      background: ativo?"#6366f1":"#f1f5f9",
+                      background: ativo?"#4f46e5":"#f1f5f9",
                       color: ativo?"#fff":"#64748b",
                       border:"none",borderRadius:100,padding:"4px 10px",fontSize:12,fontWeight:ativo?700:400,cursor:"pointer"
                     }}>{cat?`${cat.icon} ${cat.label}`:"Todas"}</button>
@@ -590,7 +590,7 @@ export default function App() {
 
             {faturas.length>0&&(
               <div style={{marginBottom:16}}>
-                <p style={{...S.bxtitle,marginBottom:8,color:"#7c3aed"}}>💳 Faturas de cartão</p>
+                <p style={{...S.bxtitle,marginBottom:8,color:"#4f46e5"}}>💳 Faturas de cartão</p>
                 {faturas.map(f=>{
                   const ban=BANDEIRAS.find(b=>b.id===cartoes.find(c=>c.id===f.cartaoId)?.bandeira)||BANDEIRAS[6];
                   return(
@@ -606,11 +606,11 @@ export default function App() {
                         <p style={S.cvalor}>{fmtBRL(f.valor)}</p>
                       </div>
                       <div style={S.cbot}>
-                        <span style={{...S.badge,background:f.pago?"#10b98122":"#ede9fe",color:f.pago?"#10b981":"#7c3aed",border:`1px solid ${f.pago?"#10b98144":"#c4b5fd"}`}}>
+                        <span style={{...S.badge,background:f.pago?"#10b98122":"#ede9fe",color:f.pago?"#10b981":"#4f46e5",border:`1px solid ${f.pago?"#10b98144":"#c4b5fd"}`}}>
                           {f.pago?"Paga":"Em aberto"}
                         </span>
                         <div style={{flex:1}}/>
-                        <Btn bg={f.pago?"#f1f5f9":"#dcfce7"} color={f.pago?"#94a3b8":"#16a34a"} onClick={()=>togglePago(f,true)}>{f.pago?"↩ Desmarcar":"✓ Pagar"}</Btn>
+                        <Btn bg={f.pago?"#f3f4f6":"#d1fae5"} color={f.pago?"#9ca3af":"#059669"} onClick={()=>togglePago(f,true)}>{f.pago?"↩ Desmarcar":"✓ Pagar"}</Btn>
                         <Btn bg="#f8fafc" color="#64748b" onClick={()=>setModal({type:"verCartao",data:cartoes.find(c=>c.id===f.cartaoId)})}>Ver detalhes</Btn>
                       </div>
                     </div>
@@ -619,7 +619,7 @@ export default function App() {
               </div>
             )}
 
-            {contasRS.filter(c=>filtrocat==="todas"||c.categoria===filtrocat).length>0&&<p style={{...S.bxtitle,marginBottom:8,color:"#6366f1"}}>📋 Contas fixas</p>}
+            {contasRS.filter(c=>filtrocat==="todas"||c.categoria===filtrocat).length>0&&<p style={{...S.bxtitle,marginBottom:8,color:"#4f46e5"}}>📋 Contas fixas</p>}
             {contasRS.filter(c=>filtrocat==="todas"||c.categoria===filtrocat).sort((a,b)=>new Date(a.vencimento)-new Date(b.vencimento)).map(c=>{
               const cat=CATS.find(x=>x.id===c.categoria);
               const st=ST[c.status];
@@ -649,9 +649,9 @@ export default function App() {
                         ({d<0?`${Math.abs(d)}d atrás`:d===0?"hoje":`${d}d`})
                       </span>}
                     </span>
-                    <Btn bg={c.status==="pago"?"#f1f5f9":"#dcfce7"} color={c.status==="pago"?"#94a3b8":"#16a34a"} onClick={()=>togglePago(c)}>{c.status==="pago"?"↩":"✓"}</Btn>
-                    <Btn bg="#eff6ff" color="#3b82f6" onClick={()=>setModal({type:"conta",data:contas.find(x=>x.id===(c._idOriginal||c.id))||c})}>✏️</Btn>
-                    <Btn bg="#fff1f2" color="#ef4444" onClick={()=>setConfirm({...c,_type:"conta"})}>🗑</Btn>
+                    <Btn bg={c.status==="pago"?"#f3f4f6":"#d1fae5"} color={c.status==="pago"?"#9ca3af":"#059669"} onClick={()=>togglePago(c)}>{c.status==="pago"?"↩":"✓"}</Btn>
+                    <Btn bg="#eef2ff" color="#4f46e5" onClick={()=>setModal({type:"conta",data:contas.find(x=>x.id===(c._idOriginal||c.id))||c})}>✏️</Btn>
+                    <Btn bg="#fef2f2" color="#dc2626" onClick={()=>setConfirm({...c,_type:"conta"})}>🗑</Btn>
                   </div>
                   {c.obs&&<p style={S.obs}>💬 {c.obs}</p>}
                 </div>
@@ -667,14 +667,14 @@ export default function App() {
         {tab==="cartoes"&&(
           <div className="fadeUp">
             <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
-              <button style={{...S.bprimary,background:"linear-gradient(135deg,#f472b6,#818cf8)"}} onClick={()=>setModal({type:"cartao",data:null})}>+ Novo cartão</button>
+              <button style={{...S.bprimary,background:"#4f46e5"}} onClick={()=>setModal({type:"cartao",data:null})}>+ Novo cartão</button>
             </div>
 
             {cartoes.length===0&&(
               <div style={S.estate}>
                 <div style={{fontSize:48,marginBottom:10}}>💳</div>
                 <p style={{color:"#94a3b8",marginBottom:16}}>Nenhum cartão cadastrado</p>
-                <button style={{...S.bprimary,background:"linear-gradient(135deg,#6366f1,#8b5cf6)"}} onClick={()=>setModal({type:"cartao",data:null})}>Adicionar cartão</button>
+                <button style={{...S.bprimary,background:"#4f46e5"}} onClick={()=>setModal({type:"cartao",data:null})}>Adicionar cartão</button>
               </div>
             )}
 
@@ -699,13 +699,13 @@ export default function App() {
                     </div>
                   </div>
                   <div style={S.cbot}>
-                    <span style={{...S.badge,background:pago?"#10b98122":"#ede9fe",color:pago?"#10b981":"#7c3aed"}}>
+                    <span style={{...S.badge,background:pago?"#10b98122":"#ede9fe",color:pago?"#10b981":"#4f46e5"}}>
                       {pago?"Fatura paga":"Fatura aberta"}
                     </span>
                     {cartao.limite&&<span style={{...S.badge,background:"#1e293b",color:"#64748b"}}>Limite: {fmtBRL(cartao.limite)}</span>}
                     <div style={{flex:1}}/>
-                    <Btn bg="#eff6ff" color="#3b82f6" onClick={e=>{e.stopPropagation();setModal({type:"cartao",data:cartao})}}>✏️</Btn>
-                    <Btn bg="#fff1f2" color="#ef4444" onClick={e=>{e.stopPropagation();setConfirm({...cartao,_type:"cartao"})}}>🗑</Btn>
+                    <Btn bg="#eef2ff" color="#4f46e5" onClick={e=>{e.stopPropagation();setModal({type:"cartao",data:cartao})}}>✏️</Btn>
+                    <Btn bg="#fef2f2" color="#dc2626" onClick={e=>{e.stopPropagation();setConfirm({...cartao,_type:"cartao"})}}>🗑</Btn>
                   </div>
                 </div>
               );
@@ -715,11 +715,11 @@ export default function App() {
       </main>
 
       <div style={S.fab}>
-        {tab==="cartoes"  &&<FabBtn label="+ Compra" onClick={()=>setModal({type:"compra",data:null})} bg="linear-gradient(135deg,#f472b6,#818cf8)"/>}
+        {tab==="cartoes"  &&<FabBtn label="+ Compra" onClick={()=>setModal({type:"compra",data:null})} bg="#4f46e5"/>}
         {tab==="contas"   &&<FabBtn label="+ Conta"  onClick={()=>setModal({type:"conta",data:null})}/>}
         {tab==="dashboard"&&<>
           <FabBtn label="+ Conta"  onClick={()=>setModal({type:"conta",data:null})}/>
-          <FabBtn label="+ Cartão" onClick={()=>setModal({type:"cartao",data:null})} bg="linear-gradient(135deg,#f472b6,#818cf8)"/>
+          <FabBtn label="+ Cartão" onClick={()=>setModal({type:"cartao",data:null})} bg="#4f46e5"/>
         </>}
       </div>
     </div>
@@ -758,36 +758,36 @@ function VerCartao({cartao,compras,filtroMes,onNovaCompra,onEditCompra,onDelComp
   const totalSel=comprasSel.reduce((s,c)=>s+Number(c.valor),0);
   return(
     <div>
-      <div style={{background:ban.cor+"22",borderRadius:12,padding:"16px",marginBottom:16,display:"flex",gap:14,alignItems:"center"}}>
-        <div style={{width:50,height:50,borderRadius:14,background:ban.cor+"44",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>{ban.icon}</div>
+      <div style={{background:"#fff",borderRadius:14,padding:"16px",marginBottom:16,display:"flex",gap:14,alignItems:"center",border:"1px solid #e5e7eb",borderLeft:`4px solid ${ban.cor}`}}>
+        <div style={{width:50,height:50,borderRadius:14,background:"#f3f4f6",display:"flex",alignItems:"center",justifyContent:"center",fontSize:28}}>{ban.icon}</div>
         <div style={{flex:1}}>
-          <p style={{color:"#f1f5f9",fontWeight:700,fontSize:18,fontFamily:"'Playfair Display',serif"}}>{cartao.nome}</p>
-          <p style={{color:"#94a3b8",fontSize:13}}>{ban.label}{cartao.limite?` · Limite ${fmtBRL(cartao.limite)}`:""}</p>
+          <p style={{color:"#111827",fontWeight:700,fontSize:18,fontFamily:"'Playfair Display',serif"}}>{cartao.nome}</p>
+          <p style={{color:"#6b7280",fontSize:13}}>{ban.label}{cartao.limite?` · Limite ${fmtBRL(cartao.limite)}`:""}</p>
         </div>
         <div style={{display:"flex",gap:6}}>
-          <Btn bg="#eff6ff" color="#3b82f6" onClick={onEditCartao}>✏️</Btn>
-          <Btn bg="#fff1f2" color="#ef4444" onClick={onDelCartao}>🗑</Btn>
+          <Btn bg="#eef2ff" color="#4f46e5" onClick={onEditCartao}>✏️</Btn>
+          <Btn bg="#fef2f2" color="#dc2626" onClick={onDelCartao}>🗑</Btn>
         </div>
       </div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,padding:"10px 14px",background:"#f9fafb",borderRadius:12,border:"1px solid #e5e7eb"}}>
         <MesPicker value={mesSel} onChange={setMesSel}/>
-        <span style={{color:"#f1f5f9",fontWeight:700,fontSize:16}}>{fmtBRL(totalSel)}</span>
+        <span style={{color:"#111827",fontWeight:700,fontSize:16}}>{fmtBRL(totalSel)}</span>
       </div>
       {comprasSel.length===0
-        ?<p style={{color:"#475569",fontSize:13,textAlign:"center",padding:"16px 0"}}>Nenhuma compra neste mês</p>
+        ?<p style={{color:"#9ca3af",fontSize:13,textAlign:"center",padding:"16px 0"}}>Nenhuma compra neste mês</p>
         :comprasSel.map(c=>(
-          <div key={c.id} style={{background:"#f8fafc",borderRadius:10,padding:"12px",marginBottom:6,display:"flex",alignItems:"center",gap:10,border:"1px solid #e2e8f0"}}>
+          <div key={c.id} style={{background:"#fff",borderRadius:12,padding:"14px",marginBottom:8,display:"flex",alignItems:"center",gap:12,border:"1px solid #e5e7eb"}}>
             <div style={{flex:1}}>
-              <p style={{color:"#f1f5f9",fontWeight:600,fontSize:14}}>{c.descricao}</p>
-              {c._recorrente&&<p style={{color:"#6366f1",fontSize:12}}>🔁 Recorrente mensal</p>}
-              {c._totalParcelas>1&&<p style={{color:"#64748b",fontSize:12}}>Parcela {c._numParcela}/{c._totalParcelas} · Total {fmtBRL(Number(c.valor)*c._totalParcelas)}</p>}
-              {c.obs&&<p style={{color:"#475569",fontSize:11,marginTop:2}}>💬 {c.obs}</p>}
+              <p style={{color:"#111827",fontWeight:600,fontSize:14,marginBottom:2}}>{c.descricao}</p>
+              {c._recorrente&&<p style={{color:"#4f46e5",fontSize:12,fontWeight:500}}>🔁 Recorrente mensal</p>}
+              {c._totalParcelas>1&&<p style={{color:"#6b7280",fontSize:12,marginTop:2}}>Parcela {c._numParcela}/{c._totalParcelas} · Total {fmtBRL(Number(c.valor)*c._totalParcelas)}</p>}
+              {c.obs&&<p style={{color:"#9ca3af",fontSize:11,marginTop:2}}>💬 {c.obs}</p>}
             </div>
             <div style={{textAlign:"right"}}>
-              <p style={{color:"#f1f5f9",fontWeight:700,fontSize:15}}>{fmtBRL(c.valor)}</p>
-              <div style={{display:"flex",gap:4,justifyContent:"flex-end",marginTop:4}}>
-                <Btn bg="#eff6ff" color="#3b82f6" onClick={()=>onEditCompra(c)}>✏️</Btn>
-                <Btn bg="#fff1f2" color="#ef4444" onClick={()=>onDelCompra(c)}>🗑</Btn>
+              <p style={{color:"#111827",fontWeight:700,fontSize:15}}>{fmtBRL(c.valor)}</p>
+              <div style={{display:"flex",gap:4,justifyContent:"flex-end",marginTop:6}}>
+                <Btn bg="#eef2ff" color="#4f46e5" onClick={()=>onEditCompra(c)}>✏️</Btn>
+                <Btn bg="#fef2f2" color="#dc2626" onClick={()=>onDelCompra(c)}>🗑</Btn>
               </div>
             </div>
           </div>
@@ -817,7 +817,7 @@ function FormConta({data,filtroMes,onSave,onClose}){
       </Sel>
 
       <div style={{display:"flex",gap:10,alignItems:"center",marginTop:14}}>
-        <input type="checkbox" id="rec" checked={!!f.recorrente} onChange={e=>s("recorrente",e.target.checked)} style={{width:16,height:16,accentColor:"#6366f1"}}/>
+        <input type="checkbox" id="rec" checked={!!f.recorrente} onChange={e=>s("recorrente",e.target.checked)} style={{width:16,height:16,accentColor:"#4f46e5"}}/>
         <label htmlFor="rec" style={{color:"#94a3b8",fontSize:14}}>🔁 Recorrente / Parcelada</label>
       </div>
 
@@ -843,7 +843,7 @@ function FormConta({data,filtroMes,onSave,onClose}){
             </div>
           </div>
           {f.parcelaAtual&&f.totalParcelas&&(
-            <p style={{fontSize:11,color:"#6366f1",marginTop:8}}>
+            <p style={{fontSize:11,color:"#4f46e5",marginTop:8}}>
               📅 Parcela {f.parcelaAtual} de {f.totalParcelas} — termina em {addMeses(f.vencimento?f.vencimento.substring(0,7):mesAtualStr(), Number(f.totalParcelas)-Number(f.parcelaAtual)).replace("-","/")}
             </p>
           )}
@@ -869,9 +869,9 @@ function FormMeta({meta,onSave,onClose}){
       <p style={{color:"#64748b",fontSize:13,marginBottom:16}}>Defina o limite de gastos mensais. Uma barra aparecerá no dashboard mostrando quanto você já comprometeu.</p>
       <Lbl>Valor da meta (R$)</Lbl>
       <Inp type="number" placeholder="Ex: 3000" value={v} onChange={e=>setV(e.target.value)}/>
-      {v&&<p style={{fontSize:12,color:"#6366f1",marginTop:6}}>Meta: {Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})} / mês</p>}
+      {v&&<p style={{fontSize:12,color:"#4f46e5",marginTop:6}}>Meta: {Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})} / mês</p>}
       <button style={{...S.bprimary,width:"100%",marginTop:18,padding:"13px"}} onClick={()=>onSave(v)}>Salvar meta</button>
-      {meta>0&&<button style={{width:"100%",marginTop:8,padding:"11px",background:"none",border:"1px solid #334155",borderRadius:12,color:"#64748b",cursor:"pointer"}} onClick={()=>onSave(0)}>Remover meta</button>}
+      {meta>0&&<button style={{width:"100%",marginTop:8,padding:"11px",background:"none",border:"1px solid #e5e7eb",borderRadius:12,color:"#6b7280",cursor:"pointer"}} onClick={()=>onSave(0)}>Remover meta</button>}
     </div>
   );
 }
@@ -889,7 +889,7 @@ function FormCartao({data,onSave,onClose}){
       </Sel>
       <Lbl>Limite (R$) — opcional</Lbl><Inp type="number" placeholder="0,00" value={f.limite||""} onChange={e=>s("limite",e.target.value)}/>
       <Lbl>Observação</Lbl><Txa placeholder="Opcional..." value={f.obs||""} onChange={e=>s("obs",e.target.value)}/>
-      <button style={{...S.bprimary,width:"100%",marginTop:18,padding:"13px",background:"linear-gradient(135deg,#6366f1,#8b5cf6)"}} onClick={()=>onSave(f)}>
+      <button style={{...S.bprimary,width:"100%",marginTop:18,padding:"13px",background:"#4f46e5"}} onClick={()=>onSave(f)}>
         {f.id?"Salvar":"Adicionar cartão"}
       </button>
     </div>
@@ -912,7 +912,7 @@ function FormCompra({data,cartoes,filtroMes,onSave,onClose}){
       <Lbl>Mês da 1ª parcela *</Lbl><Inp type="month" value={f.mes} onChange={e=>s("mes",e.target.value)}/>
       <Lbl>Descrição *</Lbl><Inp placeholder="Ex: TV Samsung" value={f.descricao} onChange={e=>s("descricao",e.target.value)}/>
       <div style={{display:"flex",gap:10,alignItems:"center",marginTop:14,marginBottom:4}}>
-        <input type="checkbox" id="rec_compra" checked={!!f.recorrente} onChange={e=>s("recorrente",e.target.checked)} style={{width:16,height:16,accentColor:"#6366f1"}}/>
+        <input type="checkbox" id="rec_compra" checked={!!f.recorrente} onChange={e=>s("recorrente",e.target.checked)} style={{width:16,height:16,accentColor:"#4f46e5"}}/>
         <label htmlFor="rec_compra" style={{color:"#94a3b8",fontSize:14}}>🔁 Recorrente (assinatura mensal)</label>
       </div>
 
@@ -934,7 +934,7 @@ function FormCompra({data,cartoes,filtroMes,onSave,onClose}){
           </div>
         </div>
         {termina&&total>1&&f.mes&&f.valor&&(
-          <p style={{fontSize:11,color:"#6366f1",marginTop:6}}>
+          <p style={{fontSize:11,color:"#4f46e5",marginTop:6}}>
             📅 {total}x de {fmtBRL(f.valor)} = {fmtBRL(Number(f.valor)*total)} total — última parcela em {termina.replace("-","/")}
           </p>
         )}
@@ -942,9 +942,9 @@ function FormCompra({data,cartoes,filtroMes,onSave,onClose}){
 
       <Lbl>Valor {f.recorrente?"mensal":"de cada parcela"} (R$) *</Lbl>
       <Inp type="number" placeholder="0,00" value={f.valor} onChange={e=>s("valor",e.target.value)}/>
-      {f.recorrente&&<p style={{fontSize:11,color:"#6366f1",marginTop:6}}>🔁 Aparece todo mês a partir de {f.mes||"..."} até ser excluída</p>}
+      {f.recorrente&&<p style={{fontSize:11,color:"#4f46e5",marginTop:6}}>🔁 Aparece todo mês a partir de {f.mes||"..."} até ser excluída</p>}
       <Lbl>Observação</Lbl><Txa placeholder="Opcional..." value={f.obs||""} onChange={e=>s("obs",e.target.value)}/>
-      <button style={{...S.bprimary,width:"100%",marginTop:18,padding:"13px",background:"linear-gradient(135deg,#6366f1,#8b5cf6)"}} onClick={()=>onSave(f)}>
+      <button style={{...S.bprimary,width:"100%",marginTop:18,padding:"13px",background:"#4f46e5"}} onClick={()=>onSave(f)}>
         {f.id?"Salvar":"Adicionar compra"}
       </button>
     </div>
@@ -954,99 +954,98 @@ function FormCompra({data,cartoes,filtroMes,onSave,onClose}){
 // ─── MINI COMPONENTS ─────────────────────────────────────────
 function BigCard({label,value,sub,cor}){
   return(
-    <div style={{background:"#fff",borderRadius:16,padding:"16px",borderTop:`3px solid ${cor}`,boxShadow:"0 1px 6px rgba(15,23,42,.07)"}}>
-      <p style={{fontSize:11,color:"#94a3b8",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>{label}</p>
-      <p style={{fontSize:19,fontWeight:700,color:"#0f172a",fontFamily:"'Playfair Display',serif",marginBottom:2}}>{value}</p>
-      <p style={{fontSize:11,color:"#94a3b8"}}>{sub}</p>
+    <div style={{background:"#fff",borderRadius:16,padding:"16px",borderTop:`3px solid ${cor}`,boxShadow:"0 1px 4px rgba(0,0,0,.06)"}}>
+      <p style={{fontSize:11,color:"#64748b",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>{label}</p>
+      <p style={{fontSize:19,fontWeight:700,color:"#111827",fontFamily:"'Playfair Display',serif",marginBottom:2}}>{value}</p>
+      <p style={{fontSize:11,color:"#6b7280"}}>{sub}</p>
     </div>
   );
 }
 function Btn({bg,color,onClick,children}){
   return <button style={{background:bg,color,border:"none",borderRadius:8,padding:"6px 10px",fontSize:13,fontWeight:600,whiteSpace:"nowrap",boxShadow:"0 1px 3px rgba(15,23,42,.08)"}} onClick={onClick}>{children}</button>;
 }
-function FabBtn({label,onClick,bg="linear-gradient(135deg,#6366f1,#8b5cf6)"}){
+function FabBtn({label,onClick,bg="#4f46e5"}){
   return <button style={{background:bg,color:"#fff",border:"none",borderRadius:100,padding:"10px 20px",fontWeight:700,fontSize:14,boxShadow:"0 4px 20px rgba(99,102,241,.35)"}} onClick={onClick}>{label}</button>;
 }
 function MesPicker({value,onChange,temaClaro}){
   const [y,m]=value.split("-").map(Number);
   const prev=()=>{ let nm=m-1,ny=y; if(nm<1){nm=12;ny--;} onChange(`${ny}-${String(nm).padStart(2,"0")}`); };
   const next=()=>{ let nm=m+1,ny=y; if(nm>12){nm=1;ny++;} onChange(`${ny}-${String(nm).padStart(2,"0")}`); };
-  const bg=temaClaro?"#e2e8f0":"#1e293b";
-  const cor=temaClaro?"#475569":"#94a3b8";
+  const bg="#f3f4f6";
+  const cor="#374151";
   return(
     <span style={{display:"inline-flex",alignItems:"center",gap:6}}>
-      <button style={{background:bg,border:"none",color:cor,fontSize:16,width:28,height:28,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={prev}>‹</button>
-      <span style={{fontSize:13,color:cor,textTransform:"capitalize",minWidth:70,textAlign:"center"}}>{MESES[m-1]} {y}</span>
-      <button style={{background:bg,border:"none",color:cor,fontSize:16,width:28,height:28,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={next}>›</button>
+      <button style={{background:"#f3f4f6",border:"1px solid #e5e7eb",color:"#374151",fontSize:16,width:28,height:28,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} onClick={prev}>‹</button>
+      <span style={{fontSize:13,color:"#374151",fontWeight:600,textTransform:"capitalize",minWidth:70,textAlign:"center"}}>{MESES[m-1]} {y}</span>
+      <button style={{background:"#f3f4f6",border:"1px solid #e5e7eb",color:"#374151",fontSize:16,width:28,height:28,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} onClick={next}>›</button>
     </span>
   );
 }
 function FHeader({title,onClose}){
   return(
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
-      <h2 style={{color:"#0f172a",fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700}}>{title}</h2>
-      <button style={{background:"#f1f5f9",border:"none",color:"#64748b",fontSize:16,lineHeight:1,width:32,height:32,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center"}} onClick={onClose}>✕</button>
+      <h2 style={{color:"#111827",fontFamily:"'Playfair Display',serif",fontSize:20,fontWeight:700}}>{title}</h2>
+      <button style={{background:"#f3f4f6",border:"none",color:"#6b7280",fontSize:16,lineHeight:1,width:32,height:32,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}} onClick={onClose}>✕</button>
     </div>
   );
 }
-const Lbl=({children})=><label style={{display:"block",fontSize:11,fontWeight:700,color:"#64748b",textTransform:"uppercase",letterSpacing:"0.06em",marginTop:14,marginBottom:5}}>{children}</label>;
-const Inp=(p)=><input {...p} style={{width:"100%",padding:"10px 12px",background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:10,color:"#0f172a",fontSize:14,...(p.style||{})}}/>;
-const Sel=(p)=><select {...p} style={{width:"100%",padding:"10px 12px",background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:10,color:"#0f172a",fontSize:14}}/>;
+const Lbl=({children})=><label style={{display:"block",fontSize:11,fontWeight:700,color:"#6b7280",textTransform:"uppercase",letterSpacing:"0.06em",marginTop:14,marginBottom:5}}>{children}</label>;
+const Inp=(p)=><input {...p} style={{width:"100%",padding:"10px 12px",background:"#f3f4f6",border:"1.5px solid #e5e7eb",borderRadius:10,color:"#111827",fontSize:14,...(p.style||{})}}/>;
+const Sel=(p)=><select {...p} style={{width:"100%",padding:"10px 12px",background:"#f3f4f6",border:"1.5px solid #e5e7eb",borderRadius:10,color:"#111827",fontSize:14}}/>;
 const Txa=(p)=><textarea {...p} style={{width:"100%",padding:"10px 12px",background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:10,color:"#0f172a",fontSize:14,minHeight:60,resize:"vertical"}}/>;
 
 const CSS=`
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap');
   *{box-sizing:border-box;margin:0;padding:0;}
   @keyframes spin{to{transform:rotate(360deg)}}
-  @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-  @keyframes toastIn{from{opacity:0;transform:translate(-50%,-16px)}to{opacity:1;transform:translate(-50%,0)}}
-  .fadeUp{animation:fadeUp .22s ease;}
-  input,select,textarea{font-family:'Inter',sans-serif;}
-  input:focus,select:focus,textarea:focus{outline:2px solid #6366f1;border-color:transparent!important;}
-  button{cursor:pointer;font-family:'Inter',sans-serif;}
-  ::-webkit-scrollbar{width:4px;height:4px;}
-  ::-webkit-scrollbar-track{background:#f1f5f9;}
-  ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:4px;}
-  body{background:#f8fafc;}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes toastIn{from{opacity:0;transform:translate(-50%,-12px)}to{opacity:1;transform:translate(-50%,0)}}
+  .fadeUp{animation:fadeUp .2s ease;}
+  input,select,textarea,button{font-family:'Inter',sans-serif;}
+  input:focus,select:focus,textarea:focus{outline:2px solid #4f46e5;outline-offset:0;border-color:transparent!important;}
+  ::-webkit-scrollbar{width:4px;}
+  ::-webkit-scrollbar-track{background:#f3f4f6;}
+  ::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:4px;}
+  body{background:#f9fafb;}
 `;
 const S={
-  app:    {minHeight:"100vh",background:"#f8fafc",fontFamily:"'Inter',sans-serif",maxWidth:640,margin:"0 auto",color:"#0f172a"},
-  toast:  {position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",color:"#fff",padding:"10px 22px",borderRadius:100,fontWeight:600,fontSize:14,zIndex:9999,boxShadow:"0 4px 24px rgba(99,102,241,.25)",whiteSpace:"nowrap",animation:"toastIn .25s ease"},
-  overlay:{position:"fixed",inset:0,background:"rgba(15,23,42,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:16},
-  overlayTop:{position:"fixed",inset:0,background:"rgba(15,23,42,.4)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9500,padding:16},
-  mbox:   {background:"#fff",borderRadius:20,padding:24,maxWidth:430,width:"100%",boxShadow:"0 20px 60px rgba(15,23,42,.12)"},
-  mtitle: {color:"#0f172a",fontWeight:700,fontSize:17,marginBottom:4},
-  msub:   {color:"#64748b",fontSize:13,marginBottom:20},
+  app:    {minHeight:"100vh",background:"#f9fafb",fontFamily:"'Inter',sans-serif",maxWidth:640,margin:"0 auto",color:"#111827"},
+  toast:  {position:"fixed",top:16,left:"50%",transform:"translateX(-50%)",color:"#fff",padding:"11px 24px",borderRadius:100,fontWeight:600,fontSize:14,zIndex:9999,boxShadow:"0 4px 20px rgba(79,70,229,.3)",whiteSpace:"nowrap",animation:"toastIn .2s ease"},
+  overlay:{position:"fixed",inset:0,background:"rgba(0,0,0,.3)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9000,padding:16},
+  overlayTop:{position:"fixed",inset:0,background:"rgba(0,0,0,.3)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9500,padding:16},
+  mbox:   {background:"#fff",borderRadius:20,padding:24,maxWidth:430,width:"100%",boxShadow:"0 20px 50px rgba(0,0,0,.12)"},
+  mtitle: {color:"#111827",fontWeight:700,fontSize:17,marginBottom:4},
+  msub:   {color:"#6b7280",fontSize:13,marginBottom:20},
   mbrow:  {display:"flex",gap:10},
-  bghost: {flex:1,padding:"11px",background:"#f8fafc",border:"1.5px solid #e2e8f0",borderRadius:10,color:"#64748b",fontWeight:600,fontSize:14},
-  bdanger:{flex:1,padding:"11px",background:"#ef4444",border:"none",borderRadius:10,color:"#fff",fontWeight:700,fontSize:14},
-  header: {background:"#fff",borderBottom:"1px solid #e2e8f0",position:"sticky",top:0,zIndex:100,boxShadow:"0 1px 8px rgba(15,23,42,.06)"},
+  bghost: {flex:1,padding:"11px",background:"#f9fafb",border:"1.5px solid #e5e7eb",borderRadius:10,color:"#374151",fontWeight:600,fontSize:14,cursor:"pointer"},
+  bdanger:{flex:1,padding:"11px",background:"#dc2626",border:"none",borderRadius:10,color:"#fff",fontWeight:700,fontSize:14,cursor:"pointer"},
+  header: {background:"#fff",borderBottom:"1px solid #e5e7eb",position:"sticky",top:0,zIndex:100,boxShadow:"0 1px 4px rgba(0,0,0,.05)"},
   htop:   {display:"flex",alignItems:"center",justifyContent:"space-between",padding:"14px 16px 8px"},
-  logo:   {fontFamily:"'Playfair Display',serif",fontSize:20,color:"#0f172a",fontWeight:700},
+  logo:   {fontFamily:"'Playfair Display',serif",fontSize:20,color:"#111827",fontWeight:700},
   nav:    {display:"flex",gap:2,padding:"0 12px 10px"},
-  nbtn:   {flex:1,padding:"8px 4px",background:"none",border:"none",borderRadius:10,fontSize:13,fontWeight:500,color:"#94a3b8"},
-  nact:   {background:"#f1f5f9",color:"#6366f1",fontWeight:700},
+  nbtn:   {flex:1,padding:"8px 4px",background:"none",border:"none",borderRadius:10,fontSize:13,fontWeight:500,color:"#9ca3af",cursor:"pointer"},
+  nact:   {background:"#eef2ff",color:"#4f46e5",fontWeight:700},
   main:   {padding:"14px 14px 100px"},
   g2:     {display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10},
-  box:    {background:"#fff",borderRadius:16,padding:"16px",marginBottom:12,boxShadow:"0 1px 6px rgba(15,23,42,.06)"},
-  bxtitle:{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:10},
-  pbar:   {height:8,background:"#f1f5f9",borderRadius:100,overflow:"hidden"},
-  pfill:  {height:"100%",background:"linear-gradient(90deg,#6366f1,#8b5cf6)",borderRadius:100,transition:"width .5s ease"},
-  plabel: {fontSize:12,color:"#94a3b8"},
-  badge:  {fontSize:11,fontWeight:700,borderRadius:6,padding:"2px 8px",display:"inline-block"},
-  prow:   {display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderBottom:"1px solid #f1f5f9"},
-  pnome:  {fontSize:14,fontWeight:600,color:"#0f172a",marginBottom:1},
-  pdata:  {fontSize:12,color:"#94a3b8"},
-  pvalor: {fontSize:14,fontWeight:700,color:"#0f172a"},
-  empty:  {color:"#94a3b8",fontSize:13,textAlign:"center",padding:"12px 0"},
+  box:    {background:"#fff",borderRadius:16,padding:"16px",marginBottom:12,boxShadow:"0 1px 4px rgba(0,0,0,.06)"},
+  bxtitle:{fontSize:11,fontWeight:700,color:"#9ca3af",textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:12},
+  pbar:   {height:8,background:"#f3f4f6",borderRadius:100,overflow:"hidden"},
+  pfill:  {height:"100%",background:"linear-gradient(90deg,#4f46e5,#7c3aed)",borderRadius:100,transition:"width .5s ease"},
+  plabel: {fontSize:12,color:"#9ca3af"},
+  badge:  {fontSize:11,fontWeight:600,borderRadius:6,padding:"3px 8px",display:"inline-block"},
+  prow:   {display:"flex",alignItems:"center",gap:10,padding:"11px 0",borderBottom:"1px solid #f3f4f6"},
+  pnome:  {fontSize:14,fontWeight:600,color:"#111827",marginBottom:2},
+  pdata:  {fontSize:12,color:"#6b7280"},
+  pvalor: {fontSize:14,fontWeight:700,color:"#111827"},
+  empty:  {color:"#9ca3af",fontSize:13,textAlign:"center",padding:"16px 0"},
   estate: {display:"flex",flexDirection:"column",alignItems:"center",padding:"48px 16px",gap:8},
-  ccard:  {background:"#fff",borderRadius:16,padding:"14px",marginBottom:8,boxShadow:"0 1px 6px rgba(15,23,42,.06)"},
+  ccard:  {background:"#fff",borderRadius:16,padding:"14px",marginBottom:8,boxShadow:"0 1px 4px rgba(0,0,0,.06)"},
   ctop:   {display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:10},
-  cnome:  {fontSize:14,fontWeight:600,color:"#0f172a",marginBottom:2},
-  ccat:   {fontSize:12,color:"#94a3b8"},
-  cvalor: {fontSize:16,fontWeight:700,color:"#0f172a",fontFamily:"'Playfair Display',serif"},
+  cnome:  {fontSize:14,fontWeight:600,color:"#111827",marginBottom:2},
+  ccat:   {fontSize:12,color:"#6b7280"},
+  cvalor: {fontSize:16,fontWeight:700,color:"#111827",fontFamily:"'Playfair Display',serif"},
   cbot:   {display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"},
-  obs:    {fontSize:11,color:"#94a3b8",marginTop:8,paddingTop:8,borderTop:"1px solid #f1f5f9"},
+  obs:    {fontSize:11,color:"#9ca3af",marginTop:8,paddingTop:8,borderTop:"1px solid #f3f4f6"},
   fab:    {position:"fixed",bottom:24,right:20,display:"flex",flexDirection:"column",gap:10,alignItems:"flex-end",zIndex:200},
-  bprimary:{background:"linear-gradient(135deg,#6366f1,#8b5cf6)",color:"#fff",border:"none",borderRadius:12,fontWeight:700,fontSize:14,padding:"10px 20px"},
+  bprimary:{background:"#4f46e5",color:"#fff",border:"none",borderRadius:12,fontWeight:600,fontSize:14,padding:"10px 20px",cursor:"pointer"},
 };
