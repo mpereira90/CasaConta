@@ -460,7 +460,7 @@ export default function App() {
             </div>
             <div style={S.g2}>
               <BigCard label="Contas fixas"   value={fmtBRL(totalFixas)}   sub={`${contasRS.length} lançamento${contasRS.length!==1?"s":""}`} cor="#4f46e5"/>
-              <BigCard label="Faturas cartão" value={fmtBRL(totalFaturas)} sub={`${faturas.length} cartão${faturas.length!==1?"ões":""}`}      cor="#4f46e5"/>
+              <BigCard label="Faturas cartão" value={fmtBRL(totalFaturas)} sub={`${faturas.length} ${faturas.length!==1?"cartões":"cartão"}`}      cor="#4f46e5"/>
             </div>
 
             {totalGeral>0&&(
