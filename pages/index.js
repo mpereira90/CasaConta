@@ -4,6 +4,8 @@ import {
   getCartoes, upsertCartao, deleteCartao as dbDeleteCartao,
   getCompras, upsertCompra, deleteCompra as dbDeleteCompra,
   getFaturasPagas, toggleFaturaPaga,
+  getEmprestimos, upsertEmprestimo, deleteEmprestimo as dbDeleteEmprestimo,
+  getEntradas, upsertEntrada, deleteEntrada as dbDeleteEntrada,
 } from '../lib/supabase';
 
 // ─── UTILS ───────────────────────────────────────────────────
@@ -53,7 +55,9 @@ const ST = {
 
 const EMPTY_CONTA  = {nome:"",categoria:"moradia",valor:"",vencimento:"",pago:false,recorrente:false,parcelaAtual:"",totalParcelas:"",obs:""};
 const EMPTY_CARTAO = {nome:"",bandeira:"nubank",limite:"",obs:""};
-const EMPTY_COMPRA = {cartaoId:"",descricao:"",valor:"",totalParcelas:"1",mes:"",obs:"",recorrente:false};
+const EMPTY_COMPRA    = {cartaoId:"",descricao:"",valor:"",totalParcelas:"1",mes:"",obs:"",recorrente:false};
+const EMPTY_EMPRESTIMO = {nome:"",banco:"",valorTotal:"",valorParcela:"",parcelaAtual:"1",totalParcelas:"",obs:""};
+const EMPTY_ENTRADA    = {descricao:"",valor:"",mes:"",recorrente:false,obs:""};
 
 // ─── LÓGICA DE RECORRÊNCIA E ATRASO ──────────────────────────
 function expandirContasParaMes(contas, filtroMes) {
@@ -184,6 +188,8 @@ export default function App() {
   const [modal,        setModal]       = useState(null);
   const [confirm,      setConfirm]     = useState(null);
   const [filtroMes,    setFiltroMes]   = useState(mesAtualStr);
+  const [emprestimos,  setEmprestimos] = useState([]);
+  const [entradas,     setEntradas]    = useState([]);
   const [filtrocat,    setFiltrocat]   = useState("todas");
   const [metaMensal,   setMetaMensal]  = useState(()=>{ try{ return Number(localStorage.getItem("cc-meta"))||0; }catch(e){return 0;} });
   const [temaClaro,    setTemaClaro]   = useState(()=>{ try{ return localStorage.getItem("cc-tema")==="claro"; }catch(e){return false;} });
@@ -194,10 +200,12 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const [c, ca, co, fp] = await Promise.all([
+        const [c, ca, co, fp, em, en] = await Promise.all([
           getContas(), getCartoes(), getCompras(), getFaturasPagas(),
+          getEmprestimos(), getEntradas(),
         ]);
         setContas(c); setCartoes(ca); setCompras(co); setFaturasPagas(fp);
+        setEmprestimos(em); setEntradas(en);
       } catch (e) {
         toast_("Erro ao carregar dados", "err");
         console.error(e);
@@ -321,7 +329,64 @@ export default function App() {
     } catch(e) { toast_("Erro ao remover compra","err"); }
   }
 
+  // ── EMPRÉSTIMOS ──
+  async function saveEmprestimo(form) {
+    if (!form.nome.trim()||!form.valorParcela||!form.totalParcelas) { toast_("Preencha nome, valor e parcelas","err"); return; }
+    try {
+      const saved = await upsertEmprestimo({...form, id: form.id||uid()});
+      setEmprestimos(prev => form.id ? prev.map(e=>e.id===form.id?saved:e) : [...prev, saved]);
+      toast_(form.id?"Empréstimo atualizado!":"Empréstimo adicionado!");
+      setModal(null);
+    } catch(e) { console.error(e); toast_("Erro ao salvar","err"); }
+  }
+
+  async function deleteEmprestimo(id) {
+    try {
+      await dbDeleteEmprestimo(id);
+      setEmprestimos(prev => prev.filter(e=>e.id!==id));
+      setConfirm(null); toast_("Removido");
+    } catch(e) { toast_("Erro ao remover","err"); }
+  }
+
+  async function toggleParcelaEmprestimo(emp) {
+    const pagoMeses = {...(emp.pagoMeses||{})};
+    pagoMeses[filtroMes] = !pagoMeses[filtroMes];
+    try {
+      const saved = await upsertEmprestimo({...emp, pagoMeses});
+      setEmprestimos(prev => prev.map(e=>e.id===emp.id?saved:e));
+      toast_(pagoMeses[filtroMes]?"Parcela paga ✓":"Parcela desmarcada");
+    } catch(e) { toast_("Erro ao atualizar","err"); }
+  }
+
+  // ── ENTRADAS ──
+  async function saveEntrada(form) {
+    if (!form.descricao.trim()||!form.valor) { toast_("Preencha descrição e valor","err"); return; }
+    const mes = form.mes||filtroMes;
+    try {
+      const saved = await upsertEntrada({...form, id: form.id||uid(), mes, recorrente: false});
+      setEntradas(prev => form.id ? prev.map(e=>e.id===form.id?saved:e) : [...prev, saved]);
+      toast_(form.id?"Entrada atualizada!":"Entrada adicionada!");
+      setModal(null);
+    } catch(e) { console.error(e); toast_("Erro ao salvar","err"); }
+  }
+
+  async function deleteEntrada(id) {
+    try {
+      await dbDeleteEntrada(id);
+      setEntradas(prev => prev.filter(e=>e.id!==id));
+      setConfirm(null); toast_("Removido");
+    } catch(e) { toast_("Erro ao remover","err"); }
+  }
+
   // ── COMPUTED ──
+  // Entradas do mês (recorrentes + extras do mês)
+  const entradasMes = entradas.filter(e => e.mes === filtroMes);
+  const totalEntradas = entradasMes.reduce((s,e)=>s+Number(e.valor),0);
+
+  // Empréstimos ativos (parcela atual <= total)
+  const emprestimosAtivos = emprestimos.filter(e => e.parcelaAtual <= e.totalParcelas);
+  const totalEmprestimosMes = emprestimosAtivos.reduce((s,e)=>s+Number(e.valorParcela),0);
+
   const contasExpandidas = expandirContasParaMes(contas, filtroMes);
   const contasRS = contasExpandidas.map(c => ({...c, status: getStatusLinha(c)}));
 
@@ -402,8 +467,10 @@ export default function App() {
             <div style={S.mbrow}>
               <button style={S.bghost} onClick={()=>setConfirm(null)}>Cancelar</button>
               <button style={S.bdanger} onClick={()=>{
-                if(confirm._type==="cartao")      deleteCartao(confirm.id);
-                else if(confirm._type==="compra") deleteCompra(confirm.id);
+                if(confirm._type==="cartao")       deleteCartao(confirm.id);
+                else if(confirm._type==="compra")  deleteCompra(confirm.id);
+                else if(confirm._type==="emprestimo") deleteEmprestimo(confirm.id);
+                else if(confirm._type==="entrada")   deleteEntrada(confirm.id);
                 else deleteConta(confirm._idOriginal || confirm.id);
               }}>Excluir</button>
             </div>
@@ -414,7 +481,9 @@ export default function App() {
       {modal&&(
         <div style={S.overlay} onClick={()=>setModal(null)}>
           <div style={{...S.mbox,maxHeight:"92vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
-            {modal.type==="meta"      && <FormMeta meta={metaMensal} onSave={v=>{salvarMeta(v);setModal(null);}} onClose={()=>setModal(null)}/>}
+            {modal.type==="meta"        && <FormMeta meta={metaMensal} onSave={v=>{salvarMeta(v);setModal(null);}} onClose={()=>setModal(null)}/>}
+            {modal.type==="emprestimo"  && <FormEmprestimo data={modal.data} onSave={saveEmprestimo} onClose={()=>setModal(null)}/>}
+            {modal.type==="entrada"     && <FormEntrada data={modal.data} filtroMes={filtroMes} onSave={saveEntrada} onClose={()=>setModal(null)}/>}
             {modal.type==="conta"     && <FormConta   data={modal.data} filtroMes={filtroMes} onSave={saveConta}  onClose={()=>setModal(null)}/>}
             {modal.type==="cartao"    && <FormCartao  data={modal.data}                        onSave={saveCartao} onClose={()=>setModal(null)}/>}
             {modal.type==="compra"    && <FormCompra  data={modal.data} cartoes={cartoes} filtroMes={filtroMes} onSave={saveCompra} onClose={()=>setModal(null)}/>}
@@ -444,7 +513,7 @@ export default function App() {
           </div>
         </div>
         <nav style={S.nav}>
-          {[["dashboard","📊 Resumo"],["contas","📋 Contas"],["cartoes","💳 Cartões"]].map(([v,l])=>(
+          {[["dashboard","📊 Resumo"],["contas","📋 Contas"],["cartoes","💳 Cartões"],["emprestimos","🏦 Empréstimos"],["entradas","💵 Entradas"]].map(([v,l])=>(
             <button key={v} style={{...S.nbtn,...(tab===v?S.nact:{})}} onClick={()=>setTab(v)}>{l}</button>
           ))}
         </nav>
@@ -455,12 +524,47 @@ export default function App() {
         {tab==="dashboard"&&(
           <div className="fadeUp">
             <div style={S.g2}>
+              <BigCard label="Entradas do mês" value={fmtBRL(totalEntradas)} sub={`${entradasMes.length} entrada${entradasMes.length!==1?"s":""}`} cor="#059669"/>
+              <BigCard label="Saídas do mês"   value={fmtBRL(totalGeral+totalEmprestimosMes)} sub="contas + empréstimos" cor="#dc2626"/>
+            </div>
+            {(()=>{
+              const saidas=totalGeral+totalEmprestimosMes;
+              const saldo=totalEntradas-saidas;
+              const max=Math.max(totalEntradas,saidas,1);
+              return(
+                <div style={{...S.box,marginBottom:10}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+                    <p style={S.bxtitle}>💰 Entradas x Saídas</p>
+                    <span style={{fontSize:13,fontWeight:700,color:saldo>=0?"#059669":"#dc2626"}}>{saldo>=0?"+ ":""}{fmtBRL(saldo)}</span>
+                  </div>
+                  <div style={{marginBottom:10}}>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                      <span style={{fontSize:12,color:"#059669",fontWeight:600}}>↑ Entradas</span>
+                      <span style={{fontSize:12,color:"#059669",fontWeight:600}}>{fmtBRL(totalEntradas)}</span>
+                    </div>
+                    <div style={{height:10,background:"#f3f4f6",borderRadius:100,overflow:"hidden"}}>
+                      <div style={{height:"100%",width:`${Math.min((totalEntradas/max)*100,100)}%`,background:"#059669",borderRadius:100,transition:"width .5s"}}/>
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                      <span style={{fontSize:12,color:"#dc2626",fontWeight:600}}>↓ Saídas</span>
+                      <span style={{fontSize:12,color:"#dc2626",fontWeight:600}}>{fmtBRL(saidas)}</span>
+                    </div>
+                    <div style={{height:10,background:"#f3f4f6",borderRadius:100,overflow:"hidden"}}>
+                      <div style={{height:"100%",width:`${Math.min((saidas/max)*100,100)}%`,background:"#dc2626",borderRadius:100,transition:"width .5s"}}/>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+            <div style={S.g2}>
               <BigCard label="Total do mês" value={fmtBRL(totalGeral)} sub={`${todasLinhas.length} lançamentos`} cor="#4f46e5"/>
-              <BigCard label="Total pago"   value={fmtBRL(totalPago)}  sub={`${Math.round(totalGeral>0?(totalPago/totalGeral)*100:0)}% quitado`} cor="#10b981"/>
+              <BigCard label="Total pago"   value={fmtBRL(totalPago)}  sub={`${Math.round(totalGeral>0?(totalPago/totalGeral)*100:0)}% quitado`} cor="#059669"/>
             </div>
             <div style={S.g2}>
               <BigCard label="Contas fixas"   value={fmtBRL(totalFixas)}   sub={`${contasRS.length} lançamento${contasRS.length!==1?"s":""}`} cor="#4f46e5"/>
-              <BigCard label="Faturas cartão" value={fmtBRL(totalFaturas)} sub={`${faturas.length} ${faturas.length!==1?"cartões":"cartão"}`}      cor="#4f46e5"/>
+              <BigCard label="Faturas cartão" value={fmtBRL(totalFaturas)} sub={`${faturas.length} ${faturas.length!==1?"cartões":"cartão"}`} cor="#7c3aed"/>
             </div>
 
             {totalGeral>0&&(
@@ -712,11 +816,111 @@ export default function App() {
             })}
           </div>
         )}
+
+        {/* ═══ EMPRÉSTIMOS ═══ */}
+        {tab==="emprestimos"&&(
+          <div className="fadeUp">
+            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+              <button style={S.bprimary} onClick={()=>setModal({type:"emprestimo",data:null})}>+ Novo empréstimo</button>
+            </div>
+            {emprestimosAtivos.length===0&&(
+              <div style={S.estate}>
+                <div style={{fontSize:48,marginBottom:8}}>🏦</div>
+                <p style={{color:"#6b7280",marginBottom:16}}>Nenhum empréstimo cadastrado</p>
+                <button style={S.bprimary} onClick={()=>setModal({type:"emprestimo",data:null})}>Adicionar empréstimo</button>
+              </div>
+            )}
+            {emprestimos.map(emp=>{
+              const pagas = Object.values(emp.pagoMeses||{}).filter(Boolean).length;
+              const restantes = emp.totalParcelas - emp.parcelaAtual + 1;
+              const pagaNesteMes = (emp.pagoMeses||{})[filtroMes]||false;
+              const progresso = Math.round((pagas/emp.totalParcelas)*100);
+              const parcelaAtualNum = emp.parcelaAtual + pagas;
+              return(
+                <div key={emp.id} style={{...S.ccard,borderLeft:"4px solid #4f46e5"}}>
+                  <div style={S.ctop}>
+                    <div>
+                      <p style={S.cnome}>🏦 {emp.nome}</p>
+                      <p style={S.ccat}>{emp.banco}{emp.banco?" · ":""}{emp.parcelaAtual + pagas - 1}/{emp.totalParcelas} parcelas pagas</p>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <p style={S.cvalor}>{fmtBRL(emp.valorParcela)}</p>
+                      <p style={{fontSize:11,color:"#9ca3af"}}>por mês</p>
+                    </div>
+                  </div>
+                  {/* Barra de progresso */}
+                  <div style={{marginBottom:10}}>
+                    <div style={{height:8,background:"#f3f4f6",borderRadius:100,overflow:"hidden",marginBottom:4}}>
+                      <div style={{height:"100%",width:`${progresso}%`,background:"linear-gradient(90deg,#4f46e5,#7c3aed)",borderRadius:100,transition:"width .5s"}}/>
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between"}}>
+                      <span style={{fontSize:11,color:"#9ca3af"}}>{progresso}% pago</span>
+                      <span style={{fontSize:11,color:"#9ca3af"}}>{fmtBRL(emp.valorTotal)} total</span>
+                    </div>
+                  </div>
+                  <div style={S.cbot}>
+                    <span style={{...S.badge, background:pagaNesteMes?"#d1fae5":"#fef3c7", color:pagaNesteMes?"#059669":"#d97706"}}>
+                      {pagaNesteMes?"✓ Pago este mês":"Pendente este mês"}
+                    </span>
+                    <div style={{flex:1}}/>
+                    <Btn bg={pagaNesteMes?"#f3f4f6":"#d1fae5"} color={pagaNesteMes?"#9ca3af":"#059669"} onClick={()=>toggleParcelaEmprestimo(emp)}>{pagaNesteMes?"↩":"✓ Pagar"}</Btn>
+                    <Btn bg="#eef2ff" color="#4f46e5" onClick={()=>setModal({type:"emprestimo",data:emp})}>✏️</Btn>
+                    <Btn bg="#fef2f2" color="#dc2626" onClick={()=>setConfirm({...emp,_type:"emprestimo"})}>🗑</Btn>
+                  </div>
+                  {emp.obs&&<p style={S.obs}>💬 {emp.obs}</p>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ═══ ENTRADAS ═══ */}
+        {tab==="entradas"&&(
+          <div className="fadeUp">
+            <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+              <button style={{...S.bprimary,background:"#059669"}} onClick={()=>setModal({type:"entrada",data:null})}>+ Nova entrada</button>
+            </div>
+            {/* Resumo */}
+            <div style={{...S.box,borderLeft:"4px solid #059669",marginBottom:16}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div>
+                  <p style={S.bxtitle}>Total de entradas — {MESES[Number(filtroMes.split("-")[1])-1]}</p>
+                  <p style={{fontSize:24,fontWeight:700,color:"#059669",fontFamily:"'Playfair Display',serif"}}>{fmtBRL(totalEntradas)}</p>
+                </div>
+                <span style={{fontSize:32}}>💵</span>
+              </div>
+            </div>
+            {entradasMes.length===0&&(
+              <div style={S.estate}>
+                <p style={{color:"#6b7280"}}>Nenhuma entrada neste mês</p>
+              </div>
+            )}
+            {entradasMes.map(e=>(
+              <div key={e.id} style={{...S.ccard,borderLeft:"3px solid #059669"}}>
+                <div style={S.ctop}>
+                  <div>
+                    <p style={S.cnome}>{e.descricao}</p>
+                    <p style={S.ccat}>{MESES[Number(e.mes.split("-")[1])-1]}/{e.mes.split("-")[0]}</p>
+                  </div>
+                  <p style={{...S.cvalor,color:"#059669"}}>{fmtBRL(e.valor)}</p>
+                </div>
+                <div style={S.cbot}>
+                  <div style={{flex:1}}/>
+                  <Btn bg="#eef2ff" color="#4f46e5" onClick={()=>setModal({type:"entrada",data:e})}>✏️</Btn>
+                  <Btn bg="#fef2f2" color="#dc2626" onClick={()=>setConfirm({...e,_type:"entrada"})}>🗑</Btn>
+                </div>
+                {e.obs&&<p style={S.obs}>💬 {e.obs}</p>}
+              </div>
+            ))}
+          </div>
+        )}
       </main>
 
       <div style={S.fab}>
-        {tab==="cartoes"  &&<FabBtn label="+ Compra" onClick={()=>setModal({type:"compra",data:null})} bg="#4f46e5"/>}
-        {tab==="contas"   &&<FabBtn label="+ Conta"  onClick={()=>setModal({type:"conta",data:null})}/>}
+        {tab==="cartoes"    &&<FabBtn label="+ Compra"    onClick={()=>setModal({type:"compra",data:null})} bg="#4f46e5"/>}
+        {tab==="contas"     &&<FabBtn label="+ Conta"     onClick={()=>setModal({type:"conta",data:null})}/>}
+        {tab==="emprestimos"&&<FabBtn label="+ Empréstimo" onClick={()=>setModal({type:"emprestimo",data:null})} bg="#4f46e5"/>}
+        {tab==="entradas"   &&<FabBtn label="+ Entrada"   onClick={()=>setModal({type:"entrada",data:null})} bg="#059669"/>}
         {tab==="dashboard"&&<>
           <FabBtn label="+ Conta"  onClick={()=>setModal({type:"conta",data:null})}/>
           <FabBtn label="+ Cartão" onClick={()=>setModal({type:"cartao",data:null})} bg="#4f46e5"/>
@@ -872,6 +1076,47 @@ function FormMeta({meta,onSave,onClose}){
       {v&&<p style={{fontSize:12,color:"#4f46e5",marginTop:6}}>Meta: {Number(v).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})} / mês</p>}
       <button style={{...S.bprimary,width:"100%",marginTop:18,padding:"13px"}} onClick={()=>onSave(v)}>Salvar meta</button>
       {meta>0&&<button style={{width:"100%",marginTop:8,padding:"11px",background:"none",border:"1px solid #e5e7eb",borderRadius:12,color:"#6b7280",cursor:"pointer"}} onClick={()=>onSave(0)}>Remover meta</button>}
+    </div>
+  );
+}
+
+function FormEmprestimo({data,onSave,onClose}){
+  const [f,setF]=useState(data||EMPTY_EMPRESTIMO);
+  const s=(k,v)=>setF(x=>({...x,[k]:v}));
+  const restantes = f.totalParcelas&&f.parcelaAtual ? Number(f.totalParcelas)-Number(f.parcelaAtual)+1 : null;
+  return(
+    <div>
+      <FHeader title={f.id?"Editar Empréstimo":"Novo Empréstimo"} onClose={onClose}/>
+      <Lbl>Nome *</Lbl><Inp placeholder="Ex: Empréstimo CEF" value={f.nome} onChange={e=>s("nome",e.target.value)}/>
+      <Lbl>Banco / Instituição</Lbl><Inp placeholder="Ex: Sicoob, CEF, Caixa..." value={f.banco||""} onChange={e=>s("banco",e.target.value)}/>
+      <Lbl>Valor total do empréstimo (R$)</Lbl><Inp type="number" placeholder="0,00" value={f.valorTotal||""} onChange={e=>s("valorTotal",e.target.value)}/>
+      <Lbl>Valor da parcela mensal (R$) *</Lbl><Inp type="number" placeholder="0,00" value={f.valorParcela||""} onChange={e=>s("valorParcela",e.target.value)}/>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <div><Lbl>Parcela atual *</Lbl><Inp type="number" min="1" placeholder="Ex: 4" value={f.parcelaAtual} onChange={e=>s("parcelaAtual",e.target.value)}/></div>
+        <div><Lbl>Total parcelas *</Lbl><Inp type="number" min="1" placeholder="Ex: 48" value={f.totalParcelas||""} onChange={e=>s("totalParcelas",e.target.value)}/></div>
+      </div>
+      {restantes&&<p style={{fontSize:11,color:"#4f46e5",marginTop:6}}>📅 {restantes} parcelas restantes · {fmtBRL(Number(f.valorParcela)*restantes)} a pagar</p>}
+      <Lbl>Observação</Lbl><Txa placeholder="Opcional..." value={f.obs||""} onChange={e=>s("obs",e.target.value)}/>
+      <button style={{...S.bprimary,width:"100%",marginTop:18,padding:"13px"}} onClick={()=>onSave(f)}>
+        {f.id?"Salvar":"Adicionar empréstimo"}
+      </button>
+    </div>
+  );
+}
+
+function FormEntrada({data,filtroMes,onSave,onClose}){
+  const [f,setF]=useState(data||{...EMPTY_ENTRADA,mes:filtroMes});
+  const s=(k,v)=>setF(x=>({...x,[k]:v}));
+  return(
+    <div>
+      <FHeader title={f.id?"Editar Entrada":"Nova Entrada"} onClose={onClose}/>
+      <Lbl>Descrição *</Lbl><Inp placeholder="Ex: Salário, 13º, Freelance..." value={f.descricao} onChange={e=>s("descricao",e.target.value)}/>
+      <Lbl>Valor (R$) *</Lbl><Inp type="number" placeholder="0,00" value={f.valor} onChange={e=>s("valor",e.target.value)}/>
+      <Lbl>Mês de referência *</Lbl><Inp type="month" value={f.mes||filtroMes} onChange={e=>s("mes",e.target.value)}/>
+      <Lbl>Observação</Lbl><Txa placeholder="Opcional..." value={f.obs||""} onChange={e=>s("obs",e.target.value)}/>
+      <button style={{...S.bprimary,width:"100%",marginTop:18,padding:"13px",background:"#059669"}} onClick={()=>onSave(f)}>
+        {f.id?"Salvar":"Adicionar entrada"}
+      </button>
     </div>
   );
 }
