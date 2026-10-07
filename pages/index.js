@@ -56,7 +56,7 @@ const ST = {
 const EMPTY_CONTA  = {nome:"",categoria:"moradia",valor:"",vencimento:"",pago:false,recorrente:false,parcelaAtual:"",totalParcelas:"",obs:""};
 const EMPTY_CARTAO = {nome:"",bandeira:"nubank",limite:"",obs:""};
 const EMPTY_COMPRA    = {cartaoId:"",descricao:"",valor:"",totalParcelas:"1",mes:"",obs:"",recorrente:false};
-const EMPTY_EMPRESTIMO = {nome:"",banco:"",valorTotal:"",valorParcela:"",parcelaAtual:"1",totalParcelas:"",obs:""};
+const EMPTY_EMPRESTIMO = {nome:"",banco:"",valorTotal:"",valorParcela:"",parcelaAtual:"1",totalParcelas:"",mesInicio:"",obs:""};
 const EMPTY_ENTRADA    = {descricao:"",valor:"",mes:"",recorrente:false,obs:""};
 
 // ─── LÓGICA DE RECORRÊNCIA E ATRASO ──────────────────────────
@@ -333,7 +333,7 @@ export default function App() {
   async function saveEmprestimo(form) {
     if (!form.nome.trim()||!form.valorParcela||!form.totalParcelas) { toast_("Preencha nome, valor e parcelas","err"); return; }
     try {
-      const saved = await upsertEmprestimo({...form, id: form.id||uid()});
+      const saved = await upsertEmprestimo({...form, id: form.id||uid(), mesInicio: form.mesInicio||""});
       setEmprestimos(prev => form.id ? prev.map(e=>e.id===form.id?saved:e) : [...prev, saved]);
       toast_(form.id?"Empréstimo atualizado!":"Empréstimo adicionado!");
       setModal(null);
@@ -384,7 +384,18 @@ export default function App() {
   const totalEntradas = entradasMes.reduce((s,e)=>s+Number(e.valor),0);
 
   // Empréstimos ativos (parcela atual <= total)
-  const emprestimosAtivos = emprestimos.filter(e => e.parcelaAtual <= e.totalParcelas);
+  // Empréstimo aparece a partir do mesInicio e só enquanto há parcelas restantes
+  function empAtivo(emp) {
+    if (!emp.mesInicio) return true; // legado sem mesInicio
+    if (filtroMes < emp.mesInicio) return false;
+    // parcela do mês = parcelaAtual + meses desde mesInicio
+    const [yi,mi] = emp.mesInicio.split("-").map(Number);
+    const [yf,mf] = filtroMes.split("-").map(Number);
+    const diffMeses = (yf - yi) * 12 + (mf - mi);
+    const numParcela = Number(emp.parcelaAtual) + diffMeses;
+    return numParcela <= Number(emp.totalParcelas);
+  }
+  const emprestimosAtivos = emprestimos.filter(empAtivo);
   const totalEmprestimosMes = emprestimosAtivos.reduce((s,e)=>s+Number(e.valorParcela),0);
 
   const contasExpandidas = expandirContasParaMes(contas, filtroMes);
@@ -830,42 +841,47 @@ export default function App() {
                 <button style={S.bprimary} onClick={()=>setModal({type:"emprestimo",data:null})}>Adicionar empréstimo</button>
               </div>
             )}
-            {emprestimos.map(emp=>{
-              const pagas = Object.values(emp.pagoMeses||{}).filter(Boolean).length;
-              const restantes = emp.totalParcelas - emp.parcelaAtual + 1;
-              const pagaNesteMes = (emp.pagoMeses||{})[filtroMes]||false;
-              const progresso = Math.round((pagas/emp.totalParcelas)*100);
-              const parcelaAtualNum = emp.parcelaAtual + pagas;
+            {emprestimosAtivos.map(emp=>{
+              // Calcula parcela do mês atual
+              const [yi,mi] = (emp.mesInicio||filtroMes).split("-").map(Number);
+              const [yf,mf] = filtroMes.split("-").map(Number);
+              const diffMeses = (yf-yi)*12+(mf-mi);
+              const parcelaMes = Number(emp.parcelaAtual) + diffMeses;
+              const restantes = Number(emp.totalParcelas) - parcelaMes + 1;
+              const progresso = Math.round(((parcelaMes-1)/Number(emp.totalParcelas))*100);
+              // Data fim
+              const mesRestantes = Number(emp.totalParcelas) - Number(emp.parcelaAtual);
+              const dataFim = emp.mesInicio ? addMeses(emp.mesInicio, mesRestantes) : null;
+              const [yFim,mFim] = dataFim ? dataFim.split("-").map(Number) : [0,0];
               return(
                 <div key={emp.id} style={{...S.ccard,borderLeft:"4px solid #4f46e5"}}>
                   <div style={S.ctop}>
                     <div>
                       <p style={S.cnome}>🏦 {emp.nome}</p>
-                      <p style={S.ccat}>{emp.banco}{emp.banco?" · ":""}{emp.parcelaAtual + pagas - 1}/{emp.totalParcelas} parcelas pagas</p>
+                      <p style={S.ccat}>{emp.banco}{emp.banco?" · ":""}Parcela {parcelaMes}/{emp.totalParcelas}</p>
                     </div>
                     <div style={{textAlign:"right"}}>
                       <p style={S.cvalor}>{fmtBRL(emp.valorParcela)}</p>
                       <p style={{fontSize:11,color:"#9ca3af"}}>por mês</p>
                     </div>
                   </div>
-                  {/* Barra de progresso */}
                   <div style={{marginBottom:10}}>
                     <div style={{height:8,background:"#f3f4f6",borderRadius:100,overflow:"hidden",marginBottom:4}}>
-                      <div style={{height:"100%",width:`${progresso}%`,background:"linear-gradient(90deg,#4f46e5,#7c3aed)",borderRadius:100,transition:"width .5s"}}/>
+                      <div style={{height:"100%",width:`${Math.min(progresso,100)}%`,background:"linear-gradient(90deg,#4f46e5,#7c3aed)",borderRadius:100,transition:"width .5s"}}/>
                     </div>
                     <div style={{display:"flex",justifyContent:"space-between"}}>
-                      <span style={{fontSize:11,color:"#9ca3af"}}>{progresso}% pago</span>
-                      <span style={{fontSize:11,color:"#9ca3af"}}>{fmtBRL(emp.valorTotal)} total</span>
+                      <span style={{fontSize:11,color:"#9ca3af"}}>{progresso}% quitado · {restantes} restantes</span>
+                      {dataFim&&<span style={{fontSize:11,color:"#9ca3af"}}>Término: {MESES[mFim-1]}/{yFim}</span>}
                     </div>
                   </div>
-                  <div style={S.cbot}>
-                    <span style={{...S.badge, background:pagaNesteMes?"#d1fae5":"#fef3c7", color:pagaNesteMes?"#059669":"#d97706"}}>
-                      {pagaNesteMes?"✓ Pago este mês":"Pendente este mês"}
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <span style={{...S.badge,background:"#eef2ff",color:"#4f46e5"}}>
+                      {fmtBRL(Number(emp.valorParcela)*restantes)} a pagar
                     </span>
-                    <div style={{flex:1}}/>
-                    <Btn bg={pagaNesteMes?"#f3f4f6":"#d1fae5"} color={pagaNesteMes?"#9ca3af":"#059669"} onClick={()=>toggleParcelaEmprestimo(emp)}>{pagaNesteMes?"↩":"✓ Pagar"}</Btn>
-                    <Btn bg="#eef2ff" color="#4f46e5" onClick={()=>setModal({type:"emprestimo",data:emp})}>✏️</Btn>
-                    <Btn bg="#fef2f2" color="#dc2626" onClick={()=>setConfirm({...emp,_type:"emprestimo"})}>🗑</Btn>
+                    <div style={{display:"flex",gap:6}}>
+                      <Btn bg="#eef2ff" color="#4f46e5" onClick={()=>setModal({type:"emprestimo",data:emp})}>✏️</Btn>
+                      <Btn bg="#fef2f2" color="#dc2626" onClick={()=>setConfirm({...emp,_type:"emprestimo"})}>🗑</Btn>
+                    </div>
                   </div>
                   {emp.obs&&<p style={S.obs}>💬 {emp.obs}</p>}
                 </div>
@@ -1091,11 +1107,19 @@ function FormEmprestimo({data,onSave,onClose}){
       <Lbl>Banco / Instituição</Lbl><Inp placeholder="Ex: Sicoob, CEF, Caixa..." value={f.banco||""} onChange={e=>s("banco",e.target.value)}/>
       <Lbl>Valor total do empréstimo (R$)</Lbl><Inp type="number" placeholder="0,00" value={f.valorTotal||""} onChange={e=>s("valorTotal",e.target.value)}/>
       <Lbl>Valor da parcela mensal (R$) *</Lbl><Inp type="number" placeholder="0,00" value={f.valorParcela||""} onChange={e=>s("valorParcela",e.target.value)}/>
+      <Lbl>Mês de início (mês desta parcela) *</Lbl><Inp type="month" value={f.mesInicio||""} onChange={e=>s("mesInicio",e.target.value)}/>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
         <div><Lbl>Parcela atual *</Lbl><Inp type="number" min="1" placeholder="Ex: 4" value={f.parcelaAtual} onChange={e=>s("parcelaAtual",e.target.value)}/></div>
         <div><Lbl>Total parcelas *</Lbl><Inp type="number" min="1" placeholder="Ex: 48" value={f.totalParcelas||""} onChange={e=>s("totalParcelas",e.target.value)}/></div>
       </div>
-      {restantes&&<p style={{fontSize:11,color:"#4f46e5",marginTop:6}}>📅 {restantes} parcelas restantes · {fmtBRL(Number(f.valorParcela)*restantes)} a pagar</p>}
+      {f.mesInicio&&f.parcelaAtual&&f.totalParcelas&&(()=>{
+        const restantes = Number(f.totalParcelas)-Number(f.parcelaAtual);
+        const dataFim = addMeses(f.mesInicio, restantes);
+        const [yFim,mFim] = dataFim.split("-").map(Number);
+        return <p style={{fontSize:11,color:"#4f46e5",marginTop:6}}>
+          📅 {Number(f.totalParcelas)-Number(f.parcelaAtual)+1} parcelas restantes · término em {MESES[mFim-1]}/{yFim}
+        </p>;
+      })()}
       <Lbl>Observação</Lbl><Txa placeholder="Opcional..." value={f.obs||""} onChange={e=>s("obs",e.target.value)}/>
       <button style={{...S.bprimary,width:"100%",marginTop:18,padding:"13px"}} onClick={()=>onSave(f)}>
         {f.id?"Salvar":"Adicionar empréstimo"}
